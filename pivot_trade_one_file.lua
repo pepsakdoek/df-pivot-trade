@@ -272,9 +272,9 @@ PivotWindow = defclass(PivotWindow, widgets.Window)
 PivotWindow.ATTRS {
     frame_title = "Pivot Inventory Explorer",
     resizable = true,
-    resize_min = {w=60, h=30},
+    resize_min = {w=8, h=30},
     frame = {w=70, h=40},
-    autoarrange_subviews = true,
+    -- autoarrange_subviews = true,
 }
 
 function PivotWindow:init(args)
@@ -292,11 +292,11 @@ function PivotWindow:init(args)
         },
         widgets.List{
             view_id = 'main_list',
-            frame = {t=2, l=0, r=0, b=3}, -- Leave room for hotkeys at bottom
+            frame = {t=2, l=0, r=0, b=2}, -- Leave room for hotkeys at bottom
             on_submit = self:callback('on_list_submit'),
             scroll_keys = widgets.SECOND_SCROLL_KEYS,
         },
-        widgets.Divider{frame={b=2, h=1}},
+        widgets.Divider{frame={b=1, h=1}},
         widgets.HotkeyLabel{
             frame = {b=0, l=0},
             label = "Go Back",
@@ -329,9 +329,20 @@ end
 function PivotWindow:refresh_list()
     local choices = {}
     local list = self.subviews.main_list
+    local total_count = 0
+    local total_value = 0
 
     if self.view_mode == 'CLASS' then
-        self.subviews.path_label:setText("Level: Category Selection")
+        -- Calculate Grand Totals
+        for _, info in pairs(self.hierarchy_data) do
+            total_count = total_count + info.count
+            total_value = total_value + info.value
+        end
+        self.subviews.path_label:setText({
+            {text="Root Selection | Total: "},
+            {text=tostring(total_count), pen=gui.CYAN},
+            {text=" items (" .. ui_format_value(total_value) .. ")", pen=gui.GREEN}
+        })
         local keys = {}
         for k in pairs(self.hierarchy_data) do table.insert(keys, k) end
         table.sort(keys)
@@ -344,8 +355,12 @@ function PivotWindow:refresh_list()
             })
         end
     elseif self.view_mode == 'SUBCLASS' then
-        self.subviews.path_label:setText("Category: " .. self.current_class_id)
         local info = self.hierarchy_data[self.current_class_id]
+        self.subviews.path_label:setText({
+            {text="Category: " .. self.current_class_id .. " | Subtotal: "},
+            {text=tostring(info.count), pen=gui.CYAN},
+            {text=" items (" .. ui_format_value(info.value) .. ")", pen=gui.GREEN}
+        })
         local keys = {}
         for k in pairs(info.subclasses) do table.insert(keys, k) end
         table.sort(keys)
@@ -358,8 +373,13 @@ function PivotWindow:refresh_list()
             })
         end
     elseif self.view_mode == 'ITEMS' then
-        self.subviews.path_label:setText(string.format("Items: %s > %s", self.current_class_id, self.current_sub_id))
         local sub = self.hierarchy_data[self.current_class_id].subclasses[self.current_sub_id]
+        self.subviews.path_label:setText({
+            {text=self.current_class_id .. " > " .. self.current_sub_id .. " | Count: "},
+            {text=tostring(sub.count), pen=gui.CYAN},
+            {text=" (" .. ui_format_value(sub.value) .. ")", pen=gui.GREEN}
+        })
+
         for _, item in ipairs(sub.items) do
             table.insert(choices, {
                 text = {{text=string.format("%-40s", dfhack.items.getReadableDescription(item))}, {text=string.format("%8d", item:getCurrencyValue(nil)), pen=gui.GREEN}},
