@@ -1,10 +1,9 @@
--- item_classifier.lua
--- Core classification logic for the DFHack Pivot UI
+--@ module = true
+local M = {}
 
-local dfhack = require('dfhack')
-local utils = require('utils')
-
--- Helper predicates for classification
+--------------------------------------------------------------------------
+-- PART 1: ITEM CLASSIFIER LOGIC
+---------------------------------------------------------------------------
 local predicates = {
     weapon_skill_sword = function(item)
         local def = dfhack.items.getSubtypeDef(item:getType(), item:getSubtype())
@@ -253,3 +252,5 @@ function classify_item(item)
     
     return "Other", "Miscellaneous"
 end
+
+return M
