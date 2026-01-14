@@ -256,57 +256,68 @@ function classify_item(item)
     return "Other", "Miscellaneous"
 end
 
+
 ---------------------------------------------------------------------------
--- PART 2: UI CLASSES (PivotPane and PivotScreen)
+-- PART 2: MODERN UI CLASSES (v50+)
 ---------------------------------------------------------------------------
-local function format_value(val)
+
+local function ui_format_value(val)
     if val >= 1000000 then return string.format("%.1fM", val / 1000000)
     elseif val >= 1000 then return string.format("%.1fk", val / 1000)
     else return tostring(val) end
 end
 
-PivotPane = defclass(PivotPane, widgets.Panel)
-PivotPane.ATTRS = { title = "Inventory", items = DEFAULT_NIL, on_submit = DEFAULT_NIL }
+-- The main logic container, now a widgets.Window
+PivotWindow = defclass(PivotWindow, widgets.Window)
+PivotWindow.ATTRS {
+    frame_title = "Pivot Inventory Explorer",
+    resizable = true,
+    resize_min = {w=60, h=30},
+    frame = {w=70, h=40},
+    autoarrange_subviews = true,
+}
 
-function PivotPane:init(args)
+function PivotWindow:init(args)
+    self.items = args.items
     self.hierarchy_data = self:process_items(args.items or {})
-    self.view_mode = 'CLASS'
-    
-    -- We define the subviews directly as a table
-    -- This avoids the need to call the add_views method
-    self.subviews = {
-        widgets.Label{ 
-            view_id = 'title_label', 
-            frame = {t=0, l=0}, 
-            text = self.title, 
-            text_pen = gui.CYAN 
+    self.view_mode = 'CLASS' -- 'CLASS', 'SUBCLASS', 'ITEMS'
+    self.current_class_id = nil
+    self.current_sub_id = nil
+
+    self:addviews{
+        widgets.Label{
+            view_id = 'path_label',
+            text = "Root",
+            text_pen = gui.YELLOW
         },
-        widgets.Label{ 
-            view_id = 'path_label', 
-            frame = {t=1, l=0}, 
-            text = "Root" 
+        widgets.List{
+            view_id = 'main_list',
+            frame = {t=2, l=0, r=0, b=3}, -- Leave room for hotkeys at bottom
+            on_submit = self:callback('on_list_submit'),
+            scroll_keys = widgets.SECOND_SCROLL_KEYS,
         },
-        widgets.List{ 
-            view_id = 'item_list', 
-            frame = {t=3, l=0, r=0, b=0}, 
-            on_submit = self:callback('on_list_submit') 
-        }
+        widgets.Divider{frame={b=2, h=1}},
+        widgets.HotkeyLabel{
+            frame = {b=0, l=0},
+            label = "Go Back",
+            key = "LEAVESCREEN",
+            on_activate = function() self:go_back() end
+        },
     }
-    
-    -- After manually setting subviews, we trigger the internal update
-    -- if self.updateLayout then self:updateLayout() end
-    -- self:refresh_list()
+    self:refresh_list()
 end
 
-function PivotPane:process_items(items)
+function PivotWindow:process_items(items)
     local data = {}
     for _, item in ipairs(items) do
         local class_id, sub_id = classify_item(item)
         data[class_id] = data[class_id] or { count = 0, value = 0, subclasses = {} }
         data[class_id].subclasses[sub_id] = data[class_id].subclasses[sub_id] or { count = 0, value = 0, items = {} }
+        
         local val = item:getCurrencyValue(nil)
         data[class_id].count = data[class_id].count + 1
         data[class_id].value = data[class_id].value + val
+        
         local sub = data[class_id].subclasses[sub_id]
         sub.count = sub.count + 1
         sub.value = sub.value + val
@@ -315,23 +326,51 @@ function PivotPane:process_items(items)
     return data
 end
 
-function PivotPane:refresh_list()
+function PivotWindow:refresh_list()
     local choices = {}
+    local list = self.subviews.main_list
+
     if self.view_mode == 'CLASS' then
-        self.subviews.path_label:setText("Whole Inventory")
-        for id, info in pairs(self.hierarchy_data) do
-            table.insert(choices, { text = {{text=id, width=15}, {text=tostring(info.count), pen=gui.CYAN}}, class_id = id })
+        self.subviews.path_label:setText("Level: Category Selection")
+        local keys = {}
+        for k in pairs(self.hierarchy_data) do table.insert(keys, k) end
+        table.sort(keys)
+
+        for _, id in ipairs(keys) do
+            local info = self.hierarchy_data[id]
+            table.insert(choices, {
+                text = {{text=string.format("%-20s", id)}, {text=string.format("%6d", info.count), pen=gui.CYAN}, {text=string.format(" (%s)", ui_format_value(info.value)), pen=gui.GREEN}},
+                class_id = id
+            })
         end
     elseif self.view_mode == 'SUBCLASS' then
+        self.subviews.path_label:setText("Category: " .. self.current_class_id)
         local info = self.hierarchy_data[self.current_class_id]
-        for id, sub in pairs(info.subclasses) do
-            table.insert(choices, { text = {{text=id, width=15}, {text=tostring(sub.count), pen=gui.CYAN}}, sub_id = id })
+        local keys = {}
+        for k in pairs(info.subclasses) do table.insert(keys, k) end
+        table.sort(keys)
+
+        for _, id in ipairs(keys) do
+            local sub = info.subclasses[id]
+            table.insert(choices, {
+                text = {{text=string.format("%-20s", id)}, {text=string.format("%6d", sub.count), pen=gui.CYAN}, {text=string.format(" (%s)", ui_format_value(sub.value)), pen=gui.GREEN}},
+                sub_id = id
+            })
+        end
+    elseif self.view_mode == 'ITEMS' then
+        self.subviews.path_label:setText(string.format("Items: %s > %s", self.current_class_id, self.current_sub_id))
+        local sub = self.hierarchy_data[self.current_class_id].subclasses[self.current_sub_id]
+        for _, item in ipairs(sub.items) do
+            table.insert(choices, {
+                text = {{text=string.format("%-40s", dfhack.items.getReadableDescription(item))}, {text=string.format("%8d", item:getCurrencyValue(nil)), pen=gui.GREEN}},
+                item = item
+            })
         end
     end
-    self.subviews.item_list:setChoices(choices)
+    list:setChoices(choices)
 end
 
-function PivotPane:on_list_submit(idx, choice)
+function PivotWindow:on_list_submit(idx, choice)
     if self.view_mode == 'CLASS' then
         self.current_class_id = choice.class_id
         self.view_mode = 'SUBCLASS'
@@ -342,58 +381,33 @@ function PivotPane:on_list_submit(idx, choice)
     self:refresh_list()
 end
 
-function PivotPane:go_back()
+function PivotWindow:go_back()
     if self.view_mode == 'ITEMS' then
         self.view_mode = 'SUBCLASS'
-        self:refresh_list()
-        return true
     elseif self.view_mode == 'SUBCLASS' then
         self.view_mode = 'CLASS'
-        self:refresh_list()
-        return true
+    else
+        self.parent_view:dismiss() -- Closes the ZScreen
+        return
     end
-    return false -- Tells the screen we are at the top level
+    self:refresh_list()
 end
 
+-- The Screen Wrapper, inheriting from gui.ZScreen
+PivotScreen = defclass(PivotScreen, gui.ZScreen)
+PivotScreen.ATTRS {
+    focus_path = 'pivot-inventory',
+    items = DEFAULT_NIL,
+}
 
-PivotScreen = defclass(PivotScreen, gui.FramedScreen)
-PivotScreen.ATTRS = { frame_title = "Pivot Inventory", left_items = DEFAULT_NIL, is_trade = false }
-
-function PivotScreen:init(args)
-    self.subviews = {
-        widgets.Panel{
-            view_id = 'main_panel',
-            subviews = {
-                PivotPane{ 
-                    view_id = 'left_pane', 
-                    title = "Stocks", 
-                    items = self.left_items, 
-                    frame = {t=0, l=0, w=35, b=2} 
-                },
-                widgets.Label{ 
-                    frame = {b=0, l=0}, 
-                    text = "Esc: Back | Enter: Select" 
-                }
-            }
+function PivotScreen:init()
+    self:addviews{
+        PivotWindow{
+            items = self.items
         }
     }
 end
 
-function PivotScreen:onInput(keys)
-    -- This is the critical check for closing the window
-    if keys.LEAVESCREEN or keys.BACKSPACE then
-        -- First, try to let the pane go back a level (e.g., Items -> Subclass)
-        if not self.subviews.left_pane:go_back() then
-            -- If the pane is already at the Root level, close the whole screen
-            self:dismiss()
-        end
-        return true -- Tell the game we handled the key
-    end
-
-    -- Send all other keys (like arrows/Enter) to the base FramedScreen logic
-    -- This allows the List widget to scroll properly
-    return PivotScreen.super.onInput(self, keys)
-end
 ---------------------------------------------------------------------------
 -- PART 3: MAIN DATA GETTERS AND ENTRY POINT
 ---------------------------------------------------------------------------
@@ -432,12 +446,14 @@ end
 function get_all_fort_items()
     local items = {}
     for _, item in ipairs(df.global.world.items.other.IN_PLAY) do
-            table.insert(items, item)
+        table.insert(items, item)
     end
     return items
 end
 
 function main()
+    -- test_pivot("FoodAndConsumables", nil)
+
     print("Launching Pivot Trade...")
     local fort_items, caravan_items = get_trade_items()
     local items_to_show = fort_items or get_all_fort_items()
@@ -445,12 +461,80 @@ function main()
     if #items_to_show == 0 then
         qerror("No items found!")
     end
+    -- Modern ZScreen show logic
+    PivotScreen{items = items_to_show}:show()
+end
 
-    PivotScreen{
-        frame_title = fort_items and "Pivot Trade" or "Pivot Stocks",
-        left_items = items_to_show,
-        is_trade = (fort_items ~= nil)
-    }:show()
+
+---------------------------------------------------------------------------
+-- PART 4: TEST UTILITIES (CLI VERSION)
+---------------------------------------------------------------------------
+
+-- Formats currency for the console
+function format_val(val)
+    if val >= 1000000 then return string.format("%.1fM", val / 1000000)
+    elseif val >= 1000 then return string.format("%.1fk", val / 1000)
+    else return tostring(val) end
+end
+
+function test_pivot(target_class, target_subclass)
+    local items = df.global.world.items.other.IN_PLAY
+    local results = {}
+
+    for _, item in ipairs(items) do
+        local class_id, sub_id = classify_item(item)
+        
+        results[class_id] = results[class_id] or { count = 0, value = 0, subclasses = {} }
+        results[class_id].subclasses[sub_id] = results[class_id].subclasses[sub_id] or { count = 0, value = 0, items = {} }
+        
+        local val = item:getCurrencyValue(nil)
+        
+        results[class_id].count = results[class_id].count + 1
+        results[class_id].value = results[class_id].value + val
+        
+        local sub = results[class_id].subclasses[sub_id]
+        sub.count = sub.count + 1
+        sub.value = sub.value + val
+        -- Store the item reference for Level 3 detail
+        table.insert(sub.items, item)
+    end
+
+    -- DISPLAY LOGIC
+    if not target_class then
+        -- Level 1: Root
+        print("\nLevel: ROOT (Categories)")
+        for id, data in pairs(results) do
+            print(string.format("  %-20s | Count: %-6d | Value: %s", id, data.count, format_val(data.value)))
+        end
+    
+    elseif target_class and not target_subclass then
+        -- Level 2: Subclasses
+        local data = results[target_class]
+        if not data then print("Category not found.") return end
+        
+        print("\nLevel: " .. target_class)
+        for sub_id, sub_data in pairs(data.subclasses) do
+            print(string.format("  %-20s | Count: %-6d | Value: %s", sub_id, sub_data.count, format_val(sub_data.value)))
+        end
+
+    elseif target_class and target_subclass then
+        -- Level 3: Individual Item Detail
+        local class_data = results[target_class]
+        local sub_data = class_data and class_data.subclasses[target_subclass]
+        
+        if not sub_data then 
+            print(string.format("No items found for %s > %s", target_class, target_subclass))
+            return 
+        end
+        
+        print(string.format("\nLevel: %s > %s", target_class, target_subclass))
+        for _, item in ipairs(sub_data.items) do
+            local name = dfhack.items.getReadableDescription(item)
+            local val = item:getCurrencyValue(nil)
+            print(string.format("  %-40s | Value: %d", name, val))
+        end
+        print(string.format("\nTotal for %s: %d items, %s value", target_subclass, sub_data.count, format_val(sub_data.value)))
+    end
 end
 
 main()
