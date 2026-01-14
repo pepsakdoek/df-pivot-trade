@@ -267,6 +267,21 @@ local function ui_format_value(val)
     else return tostring(val) end
 end
 
+local function get_generic_description(item)
+    local desc = dfhack.items.getReadableDescription(item)
+
+    -- Pattern: ≡, -, +, *, #, (, ), {, }, [, ], <, >, «, »
+    desc = desc:gsub("[%-%+%*#≡%(%){}%[%]<>%z\174\175\240]", "")
+    
+    -- Strip "left" and "right" specifically for shoes/gloves
+    desc = desc:gsub("%f[%a][Ll]eft%f[%A]", "")
+    desc = desc:gsub("%f[%a][Rr]ight%f[%A]", "")
+    
+    -- Clean up double spaces from the removals
+    return desc:gsub("%s+", " "):gsub("^%s*(.-)%s*$", "%1")
+    
+end
+
 -- The main logic container, now a widgets.Window
 PivotWindow = defclass(PivotWindow, widgets.Window)
 PivotWindow.ATTRS {
@@ -280,19 +295,24 @@ PivotWindow.ATTRS {
 function PivotWindow:init(args)
     self.items = args.items
     self.hierarchy_data = self:process_items(args.items or {})
-    self.view_mode = 'CLASS' -- 'CLASS', 'SUBCLASS', 'ITEMS'
+    self.view_mode = 'CLASS' 
     self.current_class_id = nil
     self.current_sub_id = nil
+    self.current_group_name = nil -- New state for grouping
 
     self:addviews{
+        -- Header Area
         widgets.Label{
             view_id = 'path_label',
+            frame = {t=0, l=0},
             text = "Root",
             text_pen = gui.YELLOW
         },
+        widgets.Divider{frame={t=1, h=1}},
+        -- Main List (Starts at t=2 to stay below header)
         widgets.List{
             view_id = 'main_list',
-            frame = {t=2, l=0, r=0, b=2}, -- Leave room for hotkeys at bottom
+            frame = {t=2, l=0, r=0, b=2},
             on_submit = self:callback('on_list_submit'),
             scroll_keys = widgets.SECOND_SCROLL_KEYS,
         },
@@ -329,60 +349,105 @@ end
 function PivotWindow:refresh_list()
     local choices = {}
     local list = self.subviews.main_list
-    local total_count = 0
-    local total_value = 0
-
+    
     if self.view_mode == 'CLASS' then
-        -- Calculate Grand Totals
+        local total_count, total_value = 0, 0
         for _, info in pairs(self.hierarchy_data) do
             total_count = total_count + info.count
             total_value = total_value + info.value
         end
+        
         self.subviews.path_label:setText({
-            {text="Root Selection | Total: "},
+            {text=" All Items | ", pen=gui.YELLOW},
             {text=tostring(total_count), pen=gui.CYAN},
-            {text=" items (" .. ui_format_value(total_value) .. ")", pen=gui.GREEN}
+            {text=" items | Value: " .. ui_format_value(total_value), pen=gui.GREEN}
         })
+
         local keys = {}
         for k in pairs(self.hierarchy_data) do table.insert(keys, k) end
         table.sort(keys)
-
         for _, id in ipairs(keys) do
             local info = self.hierarchy_data[id]
             table.insert(choices, {
-                text = {{text=string.format("%-20s", id)}, {text=string.format("%6d", info.count), pen=gui.CYAN}, {text=string.format(" (%s)", ui_format_value(info.value)), pen=gui.GREEN}},
+                text = {{text=string.format("%-25s", id)}, 
+                    {text=string.format("%8d", info.count), pen=gui.CYAN}, 
+                    {text=string.format(" (%s)", ui_format_value(info.value)), pen=gui.GREEN}},
                 class_id = id
             })
         end
+
     elseif self.view_mode == 'SUBCLASS' then
         local info = self.hierarchy_data[self.current_class_id]
         self.subviews.path_label:setText({
-            {text="Category: " .. self.current_class_id .. " | Subtotal: "},
+            {text=self.current_class_id .. " | ", pen=gui.YELLOW},
             {text=tostring(info.count), pen=gui.CYAN},
             {text=" items (" .. ui_format_value(info.value) .. ")", pen=gui.GREEN}
         })
+
         local keys = {}
         for k in pairs(info.subclasses) do table.insert(keys, k) end
         table.sort(keys)
-
         for _, id in ipairs(keys) do
             local sub = info.subclasses[id]
             table.insert(choices, {
-                text = {{text=string.format("%-20s", id)}, {text=string.format("%6d", sub.count), pen=gui.CYAN}, {text=string.format(" (%s)", ui_format_value(sub.value)), pen=gui.GREEN}},
+                text = {{text=string.format("%-25s", id)}, 
+                {text=string.format("%8d", sub.count), pen=gui.CYAN}, 
+                {text=string.format(" (%s)", ui_format_value(sub.value)), pen=gui.GREEN}},
                 sub_id = id
             })
         end
-    elseif self.view_mode == 'ITEMS' then
+
+    elseif self.view_mode == 'GROUPED' then
         local sub = self.hierarchy_data[self.current_class_id].subclasses[self.current_sub_id]
+        
+        -- FIX: Keep Subtotals at the top
         self.subviews.path_label:setText({
-            {text=self.current_class_id .. " > " .. self.current_sub_id .. " | Count: "},
+            {text=self.current_class_id .. " > " .. self.current_sub_id .. " | ", pen=gui.YELLOW},
             {text=tostring(sub.count), pen=gui.CYAN},
-            {text=" (" .. ui_format_value(sub.value) .. ")", pen=gui.GREEN}
+            {text=" items (" .. ui_format_value(sub.value) .. ")", pen=gui.GREEN}
         })
 
+        local groups = {}
         for _, item in ipairs(sub.items) do
+            local name = get_generic_description(item)
+            groups[name] = groups[name] or { count = 0, value = 0, items = {} }
+            groups[name].count = groups[name].count + 1
+            groups[name].value = groups[name].value + item:getCurrencyValue(nil)
+            table.insert(groups[name].items, item)
+        end
+
+        local keys = {}
+        for k in pairs(groups) do table.insert(keys, k) end
+        table.sort(keys)
+
+        for _, name in ipairs(keys) do
+            local g = groups[name]
             table.insert(choices, {
-                text = {{text=string.format("%-40s", dfhack.items.getReadableDescription(item))}, {text=string.format("%8d", item:getCurrencyValue(nil)), pen=gui.GREEN}},
+                text = {
+                    {text=string.format("%-35s", name)}, 
+                    {text=string.format("%8d", g.count), pen=gui.CYAN}, 
+                    {text=string.format(" (%s)", ui_format_value(g.value)), pen=gui.GREEN}
+                },
+                -- FIX: These fields must exist for on_list_submit to work
+                group_name = name,
+                group_items = g.items
+            })
+        end
+
+    elseif self.view_mode == 'ITEMS' then
+        -- Header for the specific group
+        self.subviews.path_label:setText({
+            {text="Items in Group: " .. self.current_group_name .. " | ", pen=gui.YELLOW},
+            {text=tostring(#self.current_group_items), pen=gui.CYAN},
+            {text=" items", pen=gui.GREEN}
+        })
+
+        for _, item in ipairs(self.current_group_items) do
+            table.insert(choices, {
+                text = {
+                    {text=string.format("%-45s", dfhack.items.getReadableDescription(item))}, 
+                    {text=string.format("%8d", item:getCurrencyValue(nil)), pen=gui.GREEN}
+                },
                 item = item
             })
         end
@@ -390,12 +455,17 @@ function PivotWindow:refresh_list()
     list:setChoices(choices)
 end
 
+
 function PivotWindow:on_list_submit(idx, choice)
     if self.view_mode == 'CLASS' then
         self.current_class_id = choice.class_id
         self.view_mode = 'SUBCLASS'
     elseif self.view_mode == 'SUBCLASS' then
         self.current_sub_id = choice.sub_id
+        self.view_mode = 'GROUPED'
+    elseif self.view_mode == 'GROUPED' then
+        self.current_group_name = choice.group_name
+        self.current_group_items = choice.group_items
         self.view_mode = 'ITEMS'
     end
     self:refresh_list()
@@ -403,11 +473,13 @@ end
 
 function PivotWindow:go_back()
     if self.view_mode == 'ITEMS' then
+        self.view_mode = 'GROUPED'
+    elseif self.view_mode == 'GROUPED' then
         self.view_mode = 'SUBCLASS'
     elseif self.view_mode == 'SUBCLASS' then
         self.view_mode = 'CLASS'
     else
-        self.parent_view:dismiss() -- Closes the ZScreen
+        self.parent_view:dismiss()
         return
     end
     self:refresh_list()
