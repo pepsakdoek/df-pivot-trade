@@ -138,7 +138,7 @@ end
 
 local ethics_view = ethics_view or nil
 
-local EthicsScreen = defclass(EthicsScreen, gui.ZScreen)
+EthicsScreen = defclass(EthicsScreen, gui.ZScreen)
 EthicsScreen.ATTRS {
     focus_path='pivot_trade/trade/ethics',
 }
@@ -174,13 +174,11 @@ function EthicsScreen:onDismiss()
     ethics_view = nil
 end
 
-EthicsScreen = EthicsScreen
-
 -- --------------------------
 -- TradeEthicsWarningOverlay
 --
 
-local TradeEthicsWarningOverlay = defclass(TradeEthicsWarningOverlay, overlay.OverlayWidget)
+TradeEthicsWarningOverlay = defclass(TradeEthicsWarningOverlay, overlay.OverlayWidget)
 TradeEthicsWarningOverlay.ATTRS{
     desc='Adds warning to the trade screen when you are about to offend the elves.',
     default_pos={x=-54,y=-5},

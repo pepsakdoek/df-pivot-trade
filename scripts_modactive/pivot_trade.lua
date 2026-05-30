@@ -1228,21 +1228,24 @@ function TradeBannerOverlay:onInput(keys)
     end
 end
 
+OVERLAY_CONFIG = {
+    banner = {
+        overlay = TradeBannerOverlay,
+    },
+    trade_overlay = {
+        overlay = TradeOverlay,
+    },
+    ethics_warning = {
+        overlay = TradeEthicsWarningOverlay,
+    },
+}
+
 if dfhack_flags and dfhack_flags.module then
     return
 end
 
--- Register overlays (called by DFHack when the script is loaded as a mod)
-local overlay = require('plugins.overlay')
-overlay.register_handler{
-    name='pivot_trade/banner',
-    overlay=TradeBannerOverlay,
-}
-overlay.register_handler{
-    name='pivot_trade/trade_overlay',
-    overlay=TradeOverlay,
-}
-overlay.register_handler{
-    name='pivot_trade/ethics_warning',
-    overlay=TradeEthicsWarningOverlay,
-}
+if trade.open then
+    trade_view = trade_view and trade_view:raise() or TradeScreen{}:show()
+else
+    print('The trade screen must be open to use this UI.')
+end
