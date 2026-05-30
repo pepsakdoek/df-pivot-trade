@@ -73,14 +73,15 @@ end
 function LuaTrade:init()
     during_init = true
     self.path = {}
-    self.cur_page = 1
+    self.cur_page = trade.open and 1 or 2
     self.filters = {'', ''}
     self.predicate_contexts = {{name='trade_caravan'}, {name='trade_fort'}}
 
-    self.animal_ethics = common.is_animal_lover_caravan(trade.mer)
-    self.wood_ethics = common.is_tree_lover_caravan(trade.mer)
+    self.animal_ethics = trade.open and common.is_animal_lover_caravan(trade.mer) or false
+    self.wood_ethics = trade.open and common.is_tree_lover_caravan(trade.mer) or false
     self.banned_items = common.get_banned_items()
     self.risky_items = common.get_risky_items(self.banned_items)
+    self.stock_selection = {}
 
     self:addviews{
         widgets.CycleHotkeyLabel{
@@ -119,6 +120,7 @@ function LuaTrade:init()
             },
             initial_option=false,
             on_change=function() self:refresh_list() end,
+            visible=function() return trade.open end,
         },
         widgets.TabBar{
             frame={t=2, l=0},
@@ -134,7 +136,14 @@ function LuaTrade:init()
                 self:refresh_list()
             end,
             get_cur_page=function() return self.cur_page end,
+            visible=function() return trade.open end,
         },
+        widgets.Label{
+            frame={t=2, l=0},
+            text='Fort Stocks (Pivoted)',
+            visible=function() return not trade.open end,
+        },
+
         widgets.ToggleHotkeyLabel{
             view_id='filters',
             frame={t=5, l=0, w=36},
@@ -1172,11 +1181,12 @@ function TradeScreen:onInput(keys)
 end
 
 function TradeScreen:onRenderFrame()
-    if not df.global.game.main_interface.trade.open then
+    if not df.global.game.main_interface.trade.open and not dfhack.gui.getCurFocus():find('Stocks') then
         if trade_view then trade_view:dismiss() end
     elseif self.reset_pending and
         (dfhack.gui.matchFocusString('dfhack/lua/pivot_trade/trade') or
-         dfhack.gui.matchFocusString('dwarfmode/Trade/Default'))
+         dfhack.gui.matchFocusString('dwarfmode/Trade/Default') or
+         dfhack.gui.matchFocusString('dwarfmode/Stocks'))
     then
         self.reset_pending = nil
         self.trade_window:reset_cache()
@@ -1201,7 +1211,7 @@ TradeBannerOverlay.ATTRS{
     desc='Adds link to the trade screen to launch the DFHack trade UI.',
     default_pos={x=-31,y=-5},
     default_enabled=true,
-    viewscreens='dwarfmode/Trade/Default',
+    viewscreens={'dwarfmode/Trade/Default', 'dwarfmode/Stocks', 'dfhack/lua/caravan/trade'},
     frame={w=25, h=1},
     frame_background=gui.CLEAR_PEN,
 }
@@ -1210,9 +1220,17 @@ function TradeBannerOverlay:init()
     self:addviews{
         widgets.TextButton{
             frame={t=0, l=0},
-            label='Pivot trade UI',
+            label=function()
+                if dfhack.gui.getCurFocus():find('Stocks') then
+                    return 'Pivot Stocks UI'
+                end
+                return 'Pivot trade UI'
+            end,
             key='CUSTOM_CTRL_P',
-            enabled=function() return trade.stillunloading == 0 and trade.havetalker == 1 end,
+            enabled=function()
+                if dfhack.gui.getCurFocus():find('Stocks') then return true end
+                return trade.stillunloading == 0 and trade.havetalker == 1
+            end,
             on_activate=function() trade_view = trade_view and trade_view:raise() or TradeScreen{}:show() end,
         },
     }
