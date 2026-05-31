@@ -4,7 +4,7 @@ This plan outlines the steps required to transition the `df-pivot-trade` hierarc
 
 ## 1. Technical Goals
 - **Multi-Row Entries**: Refactor the list rendering to support rows that are 3 characters high.
-- **Representative Icons**: Display 2-3 distinct item sprites per hierarchy row to visually represent the contents of that branch.
+- **Representative Icons**: Display 2-3 distinct item sprites per hierarchy row to visually represent the contents of that branch. It should be the Between the "Value" and "Class" columns and should drill down when clicked.  It will require about 12 tiles wide (for 3 3x3 icons with spacing)
 - **Steam Graphic Integration**: Leverage DFHack's ability to render native game sprites (layered item graphics) within a `gui.widgets` context.
 - **Performance**: Implement a caching layer for representative items to avoid scanning the entire inventory every frame.
 
@@ -12,15 +12,18 @@ This plan outlines the steps required to transition the `df-pivot-trade` hierarc
 
 ## 2. UI Layout Change (3-Row Height)
 
-Current row (1 row high):
+Current row (1 row high): (same as header just the values)
 `[X] [Cnt] [Value] [Class] [Subclass] [Grouped] [Description]`
 
 Proposed row (3 rows high):
 ```
-Row 1: [X] [Cnt] [Value]  [Class Name]
-Row 2:      [IMAGE 1] [IMAGE 2] [IMAGE 3]  [Subclass / Grouped Name]
-Row 3:      (Sub-stats like quality/wear/etc.) [Item Description (if leaf)]
+Header row: `[X] [Cnt] [Value] [*IMAGES*] [Class] [Subclass] [Grouped] [Description]`
+Row 1 : Must be a frame:  so a top left corner, top horizontal frame, and then the top right corner
+Row 2 : Vertical Frame [X] [Cnt] [Value] [*IMAGES*] [Class] [Subclass] [Grouped] [Description] Vertical frame
+Row 3 : Must be the bottom of the frame : So bottom left corner, bottom horizontal frame, bottom right corner  
 ```
+
+We will need to find the appropriate sprites for the items as well as the frames.
 
 ### Layout Logic:
 - Column widths will remain consistent, but the vertical space will be utilized for larger text and sprites.
@@ -33,7 +36,7 @@ Row 3:      (Sub-stats like quality/wear/etc.) [Item Description (if leaf)]
 At higher levels of the hierarchy, we need to pick 2-3 items to represent the group.
 
 - **Leaf Level (Item)**: Display the specific item sprite. If it's a stack, show the stack graphic.
-- **Grouped Level**: Pick the 3 most valuable items in the group that have distinct `subtype` or `material`.
+- **Grouped Level**: Pick the 3 most valuable items in the group that have distinct `subtype`.
 - **Subclass/Class Level**: 
     - Pick 1 item from the "Top" subclass.
     - Pick 1 item from the "Middle" subclass.
