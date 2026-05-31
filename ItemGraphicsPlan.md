@@ -2,6 +2,19 @@
 
 This plan outlines the steps required to transition the `df-pivot-trade` hierarchical UI from a text-only display to a rich, graphical interface using item sprites.
 
+# VERY IMPORTANT NOTE
+Currently this is extremly hard to do. In the game's engine ther eis a item_handlerst::get_basic_texpos function that gets the texpos for an item. 
+But it's not currently exposed to DF Hack so almost impossible:
+Chat on discord: 
+```
+so yeah nobody has tried to emulate DF's renderer at this level, i'm fairly certan
+also the code to do that rendering is hideously difficult to reverse engineer
+there is the sheet_icon_texpos in the item
+oh, wait, that's only on corpses
+oh huh
+we have get_basic_texpos
+```
+
 ## 1. Technical Goals
 - **Multi-Row Entries**: Refactor the list rendering to support rows that are 3 characters high.
 - **Representative Icons**: Display 2-3 distinct item sprites per hierarchy row to visually represent the contents of that branch. It should be the Between the "Value" and "Class" columns and should drill down when clicked.  It will require about 12 tiles wide (for 3 3x3 icons with spacing)
