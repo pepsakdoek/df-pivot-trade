@@ -183,7 +183,7 @@ TradeEthicsWarningOverlay.ATTRS{
     desc='Adds warning to the trade screen when you are about to offend the elves.',
     default_pos={x=-54,y=-5},
     default_enabled=true,
-    viewscreens='dwarfmode/Trade/Default',
+    viewscreens={'dwarfmode/Trade/Default', 'dwarfmode/Stocks', 'dfhack/lua/caravan/trade'},
     frame={w=9, h=2},
     visible=has_ethics_violation,
 }

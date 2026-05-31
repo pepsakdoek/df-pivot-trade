@@ -170,7 +170,7 @@ TradeOverlay.ATTRS{
     desc='Adds convenience functions for working with bins to the trade screen.',
     default_pos={x=-3,y=-12},
     default_enabled=true,
-    viewscreens='dwarfmode/Trade/Default',
+    viewscreens={'dwarfmode/Trade/Default', 'dwarfmode/Stocks', 'dfhack/lua/caravan/trade'},
     frame={w=27, h=13},
     frame_style=gui.MEDIUM_FRAME,
     frame_background=gui.CLEAR_PEN,

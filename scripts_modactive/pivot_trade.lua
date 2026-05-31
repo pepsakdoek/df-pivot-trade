@@ -20,10 +20,6 @@ local widgets = require('gui.widgets')
 
 local trade = df.global.game.main_interface.trade
 
--- -------------------
--- Trade
---
-
 LuaTrade = defclass(LuaTrade, widgets.Window)
 LuaTrade.ATTRS {
     frame_title='Select trade goods',
@@ -1217,18 +1213,22 @@ TradeBannerOverlay.ATTRS{
 }
 
 function TradeBannerOverlay:init()
+    local function get_label()
+        local focus = dfhack.gui.getCurFocus()
+        if focus and focus:find('Stocks') then
+            return 'Pivot Stocks UI'
+        end
+        return 'Pivot trade UI'
+    end
+
     self:addviews{
         widgets.TextButton{
             frame={t=0, l=0},
-            label=function()
-                if dfhack.gui.getCurFocus():find('Stocks') then
-                    return 'Pivot Stocks UI'
-                end
-                return 'Pivot trade UI'
-            end,
+            label=get_label(),
             key='CUSTOM_CTRL_P',
             enabled=function()
-                if dfhack.gui.getCurFocus():find('Stocks') then return true end
+                local focus = dfhack.gui.getCurFocus()
+                if focus and focus:find('Stocks') then return true end
                 return trade.stillunloading == 0 and trade.havetalker == 1
             end,
             on_activate=function() trade_view = trade_view and trade_view:raise() or TradeScreen{}:show() end,
@@ -1246,24 +1246,17 @@ function TradeBannerOverlay:onInput(keys)
     end
 end
 
-OVERLAY_CONFIG = {
-    banner = {
-        overlay = TradeBannerOverlay,
-    },
-    trade_overlay = {
-        overlay = TradeOverlay,
-    },
-    ethics_warning = {
-        overlay = TradeEthicsWarningOverlay,
-    },
+OVERLAY_WIDGETS = {
+    banner = TradeBannerOverlay,
+    trade_overlay = TradeOverlay,
+    ethics_warning = TradeEthicsWarningOverlay,
 }
 
-if dfhack_flags and dfhack_flags.module then
-    return
-end
-
-if trade.open then
-    trade_view = trade_view and trade_view:raise() or TradeScreen{}:show()
-else
-    print('The trade screen must be open to use this UI.')
+if not dfhack_flags or not dfhack_flags.module then
+    local focus = dfhack.gui.getCurFocus()
+    if trade.open or (focus and focus:find('Stocks')) then
+        trade_view = trade_view and trade_view:raise() or TradeScreen{}:show()
+    else
+        print('The trade screen or stocks screen must be open to use this UI.')
+    end
 end
