@@ -3,8 +3,8 @@
 
 --------------------------------------------------------------------------
 -- Current Issues with Classifier (and Other):
--- Sometimes leather is not under Textiles & Leather
--- 
+-- Leather is not under Textiles & Leather when 'trade contents only' is selected
+--  It falls under 'containers' when Trade bin with contents is selected
 ---------------------------------------------------------------------------
 
 

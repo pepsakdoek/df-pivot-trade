@@ -1147,28 +1147,28 @@ function LuaTrade:resize_columns_for_visible_list()
 end
 
 -- -------------------
--- TradeScreen
+-- PivotTradeScreen
 --
 
 trade_view = trade_view or nil
 
-TradeScreen = defclass(TradeScreen, gui.ZScreen)
-TradeScreen.ATTRS {
+PivotTradeScreen = defclass(PivotTradeScreen, gui.ZScreen)
+PivotTradeScreen.ATTRS {
     focus_path='pivot_trade/trade',
 }
 
-function TradeScreen:init()
+function PivotTradeScreen:init()
     self.trade_window = LuaTrade{}
     self:addviews{self.trade_window}
 end
 
-function TradeScreen:onInput(keys)
+function PivotTradeScreen:onInput(keys)
     if self.reset_pending then return false end
     if (keys.LEAVESCREEN or keys._MOUSE_R) and self.trade_window:onBack() then
         return true
     end
 
-    local handled = TradeScreen.super.onInput(self, keys)
+    local handled = PivotTradeScreen.super.onInput(self, keys)
     if keys._MOUSE_L and not self.trade_window:getMouseFramePos() then
         -- "trade" or "offer" buttons may have been clicked and we need to reset the cache
         self.reset_pending = true
@@ -1176,7 +1176,7 @@ function TradeScreen:onInput(keys)
     return handled
 end
 
-function TradeScreen:onRenderFrame()
+function PivotTradeScreen:onRenderFrame()
     if not df.global.game.main_interface.trade.open and not dfhack.gui.getCurFocus():find('Stocks') then
         if trade_view then trade_view:dismiss() end
     elseif self.reset_pending and
@@ -1189,21 +1189,21 @@ function TradeScreen:onRenderFrame()
     end
 end
 
-function TradeScreen:onDismiss()
+function PivotTradeScreen:onDismiss()
     trade_view = nil
 end
 
 EthicsScreen = ethics.EthicsScreen
 TradeEthicsWarningOverlay = ethics.TradeEthicsWarningOverlay
 
-TradeOverlay = tradeoverlay.TradeOverlay
+PivotTradeOverlay = tradeoverlay.TradeOverlay
 
 -- -------------------
--- TradeBannerOverlay
+-- PivotTradeBannerOverlay
 --
 
-TradeBannerOverlay = defclass(TradeBannerOverlay, overlay.OverlayWidget)
-TradeBannerOverlay.ATTRS{
+PivotTradeBannerOverlay = defclass(PivotTradeBannerOverlay, overlay.OverlayWidget)
+PivotTradeBannerOverlay.ATTRS{
     desc='Adds link to the trade screen to launch the DFHack trade UI.',
     default_pos={x=-31,y=-5},
     default_enabled=true,
@@ -1212,7 +1212,7 @@ TradeBannerOverlay.ATTRS{
     frame_background=gui.CLEAR_PEN,
 }
 
-function TradeBannerOverlay:init()
+function PivotTradeBannerOverlay:init()
     local function get_label()
         local focus = dfhack.gui.getCurFocus()
         if focus and focus:find('Stocks') then
@@ -1224,20 +1224,22 @@ function TradeBannerOverlay:init()
     self:addviews{
         widgets.TextButton{
             frame={t=0, l=0},
-            label=get_label(),
+            -- label=get_label(),
+            label='Pivot trade UI',
             key='CUSTOM_CTRL_P',
-            enabled=function()
-                local focus = dfhack.gui.getCurFocus()
-                if focus and focus:find('Stocks') then return true end
-                return trade.stillunloading == 0 and trade.havetalker == 1
-            end,
-            on_activate=function() trade_view = trade_view and trade_view:raise() or TradeScreen{}:show() end,
+            enabled=true,
+            -- enabled=function()
+            --     local focus = dfhack.gui.getCurFocus()
+            --     if focus and focus:find('Stocks') then return true end
+            --     return trade.stillunloading == 0 and trade.havetalker == 1
+            -- end,
+            on_activate=function() trade_view = trade_view and trade_view:raise() or PivotTradeScreen{}:show() end,
         },
     }
 end
 
-function TradeBannerOverlay:onInput(keys)
-    if TradeBannerOverlay.super.onInput(self, keys) then return true end
+function PivotTradeBannerOverlay:onInput(keys)
+    if PivotTradeBannerOverlay.super.onInput(self, keys) then return true end
 
     if keys._MOUSE_R or keys.LEAVESCREEN then
         if trade_view then
@@ -1247,15 +1249,15 @@ function TradeBannerOverlay:onInput(keys)
 end
 
 OVERLAY_WIDGETS = {
-    banner = TradeBannerOverlay,
-    trade_overlay = TradeOverlay,
+    banner = PivotTradeBannerOverlay,
+    trade_overlay = PivotTradeOverlay,
     ethics_warning = TradeEthicsWarningOverlay,
 }
 
 if not dfhack_flags or not dfhack_flags.module then
     local focus = dfhack.gui.getCurFocus()
     if trade.open or (focus and focus:find('Stocks')) then
-        trade_view = trade_view and trade_view:raise() or TradeScreen{}:show()
+        trade_view = trade_view and trade_view:raise() or PivotTradeScreen{}:show()
     else
         print('The trade screen or stocks screen must be open to use this UI.')
     end

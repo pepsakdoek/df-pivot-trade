@@ -165,8 +165,8 @@ local function getSavedGoodflag(saved_state, k)
     return saved_state[k+1]
 end
 
-TradeOverlay = defclass(TradeOverlay, overlay.OverlayWidget)
-TradeOverlay.ATTRS{
+PivotTradeOverlay = defclass(PivotTradeOverlay, overlay.OverlayWidget)
+PivotTradeOverlay.ATTRS{
     desc='Adds convenience functions for working with bins to the trade screen.',
     default_pos={x=-3,y=-12},
     default_enabled=true,
@@ -176,7 +176,7 @@ TradeOverlay.ATTRS{
     frame_background=gui.CLEAR_PEN,
 }
 
-function TradeOverlay:init()
+function PivotTradeOverlay:init()
     self:addviews{
         widgets.BannerPanel{
             frame={t=0, l=0, r=0, b=0},
@@ -225,7 +225,7 @@ end
 
 -- do our alterations *after* the vanilla response to the click has registered. otherwise
 -- it's very difficult to figure out which item has been clicked
-function TradeOverlay:onRenderBody(dc)
+function PivotTradeOverlay:onRenderBody(dc)
     if handle_shift_click_on_render then
         handle_shift_click_on_render = false
         select_shift_clicked_container_items(trade.goodflag[0], curry(getSavedGoodflag, trader_selected_state), 0)
@@ -237,8 +237,8 @@ function TradeOverlay:onRenderBody(dc)
     end
 end
 
-function TradeOverlay:onInput(keys)
-    if TradeOverlay.super.onInput(self, keys) then return true end
+function PivotTradeOverlay:onInput(keys)
+    if PivotTradeOverlay.super.onInput(self, keys) then return true end
 
     if keys._MOUSE_L then
         if dfhack.internal.getModifiers().shift then
