@@ -11,3 +11,5 @@
 [STEAM_TAG:mod]
 [STEAM_TAG:dfhack]
 [STEAM_TAG:interface]
+
+[STEAM_FILE_ID:3737082473]
