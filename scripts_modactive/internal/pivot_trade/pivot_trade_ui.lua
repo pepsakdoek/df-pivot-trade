@@ -1405,7 +1405,7 @@ function PivotTradeScreen:onInput(keys)
 end
 
 function PivotTradeScreen:onRenderFrame()
-    if not df.global.game.main_interface.trade.open and not dfhack.gui.getCurFocus():find('Stocks') then
+    if not df.global.game.main_interface.trade.open then -- and not dfhack.gui.getCurFocus():find('Stocks')
         if trade_view then trade_view:dismiss() end
     elseif self.reset_pending and
         (dfhack.gui.matchFocusString('dfhack/lua/pivot_trade/trade') or

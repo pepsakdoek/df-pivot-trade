@@ -84,6 +84,9 @@ function init_context_predicates(context)
 end
 
 function pass_predicates(context, item)
+    -- Added to make things run, but it might make that certain items are now not displayed in the fort goods
+    -- Need to evaluate what exactly is being missed
+    if not context or not context.predicates then return false end
     for _,predicate in pairs(context.predicates) do
         local ok, matches = safecall(predicate.match, item)
         if not ok then goto continue end
