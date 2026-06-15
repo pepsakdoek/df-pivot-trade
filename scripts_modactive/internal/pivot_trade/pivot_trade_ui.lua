@@ -10,15 +10,16 @@ local version = 'v0.51'
 local common = reqscript('internal/pivot_trade/common')
 local gui = require('gui')
 local overlay = require('plugins.overlay')
+local utils = require('utils')
+local widgets = require('gui.widgets')
+local dfhack = require('dfhack')
+
 local predicates = reqscript('internal/pivot_trade/predicates')
 local classifier = reqscript('internal/pivot_trade/item_classifier')
 local sorting = reqscript('internal/pivot_trade/sorting')
 local ethics = reqscript('internal/pivot_trade/ethics')
 local tradeoverlay = reqscript('internal/pivot_trade/tradeoverlay')
-local utils = require('utils')
-local widgets = require('gui.widgets')
-local dfhack = require('dfhack')
-local items = require('items')
+
 
 local trade = df.global.game.main_interface.trade
 
@@ -71,18 +72,36 @@ end
 function LuaTrade:init()
     during_init = true
     self.path = {}
-    self.cur_page = trade.open and 1 or 2
+    
+    -- Cache context awareness flags on the instance
+    self.trade_active = df.global.game.main_interface.trade.open
+    self.has_trader = df.global.game.main_interface.trade.havetalker == 1
+
+    -- Tab 1: Caravan, Tab 2: Depot / Fort Trade, Tab 3: Full Fort Stocks
+    if self.trade_active then
+        self.cur_page = 1
+    else
+        self.cur_page = 3
+    end
     self.filters = {'', ''}
     self.predicate_contexts = {{name='trade_caravan'}, {name='trade_fort'}}
 
-    self.animal_ethics = trade.open and common.is_animal_lover_caravan(trade.mer) or false
-    self.wood_ethics = trade.open and common.is_tree_lover_caravan(trade.mer) or false
+    -- Guarded check conditions prevent crashing on normal stock screen loads
+    self.animal_ethics = (trade_active and trade.mer) and common.is_animal_lover_caravan(trade.mer) or false
+    self.wood_ethics = (trade_active and trade.mer) and common.is_tree_lover_caravan(trade.mer) or false
     self.banned_items = common.get_banned_items()
     self.risky_items = common.get_risky_items(self.banned_items)
     self.stock_selection = {}
 
-    self.items = trade.good
-    self.item_flags = trade.goodflag
+    if trade_active then
+        self.items = trade.good
+        self.item_flags = trade.goodflag
+    else
+        self:gather_fort_items()
+        self.items = {[1]=self.fort_items}
+        self.item_flags = {[1]=self.fort_item_flags}
+    end
+
     if not trade.open then
         self:gather_fort_items()
         self.items = {[1]=self.fort_items}
@@ -132,6 +151,7 @@ function LuaTrade:init()
             frame={t=2, l=0},
             labels={
                 'Caravan goods',
+                'Depot goods',
                 'Fort goods',
             },
             on_select=function(idx)
@@ -142,7 +162,8 @@ function LuaTrade:init()
                 self:refresh_list()
             end,
             get_cur_page=function() return self.cur_page end,
-            visible=function() return trade.open end,
+            visible = true,
+            -- visible=function() return trade.open end,
         },
         widgets.Label{
             frame={t=2, l=0},
@@ -402,11 +423,11 @@ function LuaTrade:init()
                 },
                 widgets.HotkeyLabel{
                     frame={l=50, t=0},
-                    label='Trade',
+                    label='Send Items to Trade Depot',
                     key='CUSTOM_T',
                     on_activate=function() self:apply_stock_action('trade') end,
                     auto_width=true,
-                    visible=function() return trade.havetalker == 1 end,
+                    visible=function() return self.has_trader end,
                 },
             }
         },
@@ -558,15 +579,24 @@ function LuaTrade:get_selected_items(one_only)
 end
 
 function LuaTrade:apply_stock_action(action)
-    local selected_items = self:get_selected_items()
-    for _, item in ipairs(selected_items) do
-        if action == 'forbid' then item.flags.forbid = not item.flags.forbid
-        elseif action == 'dump' then item.flags.dump = not item.flags.dump
-        elseif action == 'melt' then item.flags.melt = not item.flags.melt
-        elseif action == 'hidden' then item.flags.hidden = not item.flags.hidden
-        elseif action == 'trade' then item.flags.trader_depot = true
+    local page_items = self.items[self.cur_page] or {}
+    local flags = self.item_flags[self.cur_page] or {}
+
+    for idx, item in ipairs(page_items) do
+        if flags[idx] and flags[idx].selected then
+            if action == 'forbid' then
+                item.flags.forbid = true
+            elseif action == 'dump' then
+                item.flags.dump = true
+            elseif action == 'melt' then
+                if item:isMeltable() then item.flags.melt = true end
+            elseif action == 'trade' then
+                -- Mark item for depot hauling loop via standard DF jobs
+                dfhack.items.markForTrade(item)
+            end
         end
     end
+    dfhack.gui.showAnnouncement("Stock command applied to selected selection.", COLOR_GREEN)
     self:refresh_list()
 end
 
@@ -1025,6 +1055,15 @@ function LuaTrade:get_choices()
     return self:aggregate_choices(flat, filter_str)
 end
 
+function LuaTrade:toggle_item_selection(entry)
+    if not entry then return end
+    local flags = self.item_flags[self.cur_page]
+    if flags and flags[entry.item_idx] then
+        flags[entry.item_idx].selected = not flags[entry.item_idx].selected
+        self:refresh_list()
+    end
+end
+
 function LuaTrade:toggle_item_base_internal(choice, target_value)
     local goodflag = self.item_flags[choice.data.list_idx][choice.data.item_idx]
     if target_value == nil then
@@ -1196,13 +1235,22 @@ function LuaTrade:toggle_visible()
     end
 end
 
-function LuaTrade:reset_cache()
-    self.choices = {[0]={}, [1]={}}
-    if not trade.open then
+function LuaTrade:reset_item_source()
+    if self.trade_active then
+        -- Map pages to DF structures: 1 = Caravan Goods, 2 = Fort Trade Depot Goods
+        self.items = { [0] = trade.good[0], [1] = trade.good[1] }
+        self.item_flags = { [0] = trade.goodflag[0], [1] = trade.goodflag[1] }
+    else
+        -- Fallback to system-wide items scan
         self:gather_fort_items()
-        self.items = {[1]=self.fort_items}
-        self.item_flags = {[1]=self.fort_item_flags}
+        self.items = { [2] = self.fort_items }
+        self.item_flags = { [2] = self.fort_item_flags }
     end
+end
+
+function LuaTrade:reset_cache()
+    self.choices = { [0]={}, [1]={}, [2]={} }
+    self:reset_item_source()
     self:refresh_list()
 end
 
@@ -1311,13 +1359,13 @@ trade_view = trade_view or nil
 
 PivotTradeScreen = defclass(PivotTradeScreen, gui.ZScreen)
 PivotTradeScreen.ATTRS {
-    focus_path='pivot_trade/trade',
+    focus_path = 'pivot_trade',
+    pass_forced_keys = true,
 }
 
 function PivotTradeScreen:init()
-    local title = df.global.game.main_interface.trade.open and 'Select trade goods' or 'Stocks (Pivoted)'
-    self.trade_window = LuaTrade{frame_title=title}
-    self:addviews{self.trade_window}
+    self.trade_window = LuaTrade{}
+    self:addviews{ self.trade_window }
 end
 
 function PivotTradeScreen:onInput(keys)
@@ -1353,36 +1401,56 @@ end
 
 EthicsScreen = ethics.EthicsScreen
 TradeEthicsWarningOverlay = ethics.TradeEthicsWarningOverlay
-
--- ... (end of file)
 PivotTradeOverlay = tradeoverlay.TradeOverlay
 
-function show_trade_view()
-    trade_view = trade_view and trade_view:raise() or PivotTradeScreen{}:show()
+PivotTradeBannerOverlay = defclass(PivotTradeBannerOverlay, overlay.OverlayWidget)
+PivotTradeBannerOverlay.ATTRS{
+    desc='Adds link to the trade screen to launch the DFHack trade UI.',
+    default_pos={x=-31,y=-5},
+    default_enabled=true,
+    viewscreens={'dwarfmode/Trade/Default', 'dwarfmode/Stocks', 'dfhack/lua/caravan/trade'},
+    frame={w=25, h=1},
+    frame_background=gui.CLEAR_PEN,
+}
+
+function PivotTradeBannerOverlay:init()
+    self:addviews{
+        widgets.TextButton{
+            frame={t=0, l=0},
+            label='Pivot UI',
+            key='CUSTOM_CTRL_P',
+            enabled=true,
+            on_activate=function() trade_view = trade_view and trade_view:raise() or PivotTradeScreen{}:show() end,
+        },
+    }
 end
 
-function main(mode)
-    local focus = dfhack.gui.getCurFocus()
-    local stocks_open = (df.viewscreen_stocksst and df.viewscreen_stocksst:is_instance(focus)) or
-                        (type(focus) == 'string' and focus:find('Stocks'))
+function PivotTradeBannerOverlay:onInput(keys)
+    if PivotTradeBannerOverlay.super.onInput(self, keys) then return true end
 
-    if mode == 'Stocks' then
-        show_trade_view()
-    elseif mode == 'Trade' then
-        if trade.open then
-            show_trade_view()
-        else
-            print('The trade screen is not open.')
-        end
-    elseif mode == 'Stocks-For-Trader' then
-        -- Assuming same logic as stocks, just triggering the UI
-        show_trade_view()
-    else
-        -- Original behavior
-        if trade.open or stocks_open then
-            show_trade_view()
-        else
-            print('The trade screen or stocks screen must be open to use this UI.')
+    if keys._MOUSE_R or keys.LEAVESCREEN then
+        if trade_view then
+            trade_view:dismiss()
         end
     end
 end
+
+
+function is_valid_screen()
+    local focus = dfhack.gui.getCurFocus()
+    return trade.open or (focus and focus:find('Stocks')) or focus:find('dwarfmode')
+end
+
+
+function show_trade_view()
+    if is_valid_screen() then
+        dfhack.printerr('Trying to open Pivot Trade UI...')
+        trade_view = trade_view and trade_view:raise() or PivotTradeScreen{}:show()
+        return true
+    else
+        dfhack.printerr('Open the Trade screen, Stocks view, or main fortress map to run.')
+        return false
+    end
+end
+
+return _ENV
