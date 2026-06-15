@@ -521,13 +521,22 @@ function LuaTrade:init()
     during_init = false
 end
 
+local function is_unrevealed(item)
+    local x, y, z = dfhack.items.getPosition(item)
+    if not x then return false end
+    return not dfhack.maps.isTileVisible(x, y, z)
+end
+
 function LuaTrade:gather_fort_items()
     local items_list = {}
     for _, item in ipairs(df.global.world.items.other.IN_PLAY) do
+        if not item or item.flags.removed then goto continue end
+        if is_unrevealed(item) then goto continue end
         -- Skip items that are in transit, buried, or otherwise not in the fort's main stock
-        if items.isOwnedByUser(item) and not item.flags.construction then
+        if not item.flags.foreign and not item.flags.construction then
             table.insert(items_list, item)
         end
+        ::continue::
     end
     self.fort_items = items_list
     self.fort_item_flags = {}
