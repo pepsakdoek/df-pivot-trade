@@ -11,7 +11,7 @@ local trade = df.global.game.main_interface.trade
 function is_ethical_product(item, animal_ethics, wood_ethics)
     if not animal_ethics and not wood_ethics then return true end
     -- bin contents are already split out; no need to double-check them
-    if iteflags.container and not df.item_binst:is_instance(item) then
+    if item.flags.container and not df.item_binst:is_instance(item) then
         for _, contained_item in ipairs(dfhack.items.getContainedItems(item)) do
             if (animal_ethics and contained_item:isAnimalProduct()) or
                 (wood_ethics and common.has_wood(contained_item))

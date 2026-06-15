@@ -17,6 +17,8 @@ local ethics = reqscript('internal/pivot_trade/ethics')
 local tradeoverlay = reqscript('internal/pivot_trade/tradeoverlay')
 local utils = require('utils')
 local widgets = require('gui.widgets')
+local dfhack = require('dfhack')
+local items = require('items')
 
 local trade = df.global.game.main_interface.trade
 
@@ -438,7 +440,7 @@ function LuaTrade:init()
             if not idx then return end
             local choices = self.subviews.list:getVisibleChoices()
             if choices and choices[idx] then
-                self:toggle_item_base(choices[idx])
+                self:toggle_item_base_internal(choices[idx])
                 return true
             end
         end
@@ -499,16 +501,16 @@ function LuaTrade:init()
 end
 
 function LuaTrade:gather_fort_items()
-    local items = {}
+    local items_list = {}
     for _, item in ipairs(df.global.world.items.other.IN_PLAY) do
         -- Skip items that are in transit, buried, or otherwise not in the fort's main stock
-        if dfhack.items.isOwnedByUser(item) and not item.flags.construction then
-            table.insert(items, item)
+        if items.isOwnedByUser(item) and not item.flags.construction then
+            table.insert(items_list, item)
         end
     end
-    self.fort_items = items
+    self.fort_items = items_list
     self.fort_item_flags = {}
-    for i=1, #items do
+    for i=1, #items_list do
         self.fort_item_flags[i] = {selected=false}
     end
 end
@@ -1352,69 +1354,35 @@ end
 EthicsScreen = ethics.EthicsScreen
 TradeEthicsWarningOverlay = ethics.TradeEthicsWarningOverlay
 
+-- ... (end of file)
 PivotTradeOverlay = tradeoverlay.TradeOverlay
 
--- -------------------
--- PivotTradeBannerOverlay
---
-
-PivotTradeBannerOverlay = defclass(PivotTradeBannerOverlay, overlay.OverlayWidget)
-PivotTradeBannerOverlay.ATTRS{
-    desc='Adds link to the trade screen to launch the DFHack trade UI.',
-    default_pos={x=-31,y=-5},
-    default_enabled=true,
-    viewscreens={'dwarfmode/Trade/Default', 'dwarfmode/Stocks', 'dfhack/lua/caravan/trade'},
-    frame={w=25, h=1},
-    frame_background=gui.CLEAR_PEN,
-}
-
-function PivotTradeBannerOverlay:init()
-    local function get_label()
-        local focus = dfhack.gui.getCurFocus()
-        if focus and focus:find('Stocks') then
-            return 'Pivot Stocks UI'
-        end
-        return 'Pivot trade UI'
-    end
-
-    self:addviews{
-        widgets.TextButton{
-            frame={t=0, l=0},
-            label=get_label,
-            key='CUSTOM_CTRL_P',
-            enabled=true,
-            on_activate=function() trade_view = trade_view and trade_view:raise() or PivotTradeScreen{}:show() end,
-        },
-    }
+function show_trade_view()
+    trade_view = trade_view and trade_view:raise() or PivotTradeScreen{}:show()
 end
 
-function PivotTradeBannerOverlay:onInput(keys)
-    if PivotTradeBannerOverlay.super.onInput(self, keys) then return true end
+function main(mode)
+    local focus = dfhack.gui.getCurFocus()
+    local stocks_open = (df.viewscreen_stocksst and df.viewscreen_stocksst:is_instance(focus)) or
+                        (type(focus) == 'string' and focus:find('Stocks'))
 
-    if keys._MOUSE_R or keys.LEAVESCREEN then
-        if trade_view then
-            trade_view:dismiss()
+    if mode == 'Stocks' then
+        show_trade_view()
+    elseif mode == 'Trade' then
+        if trade.open then
+            show_trade_view()
+        else
+            print('The trade screen is not open.')
         end
-    end
-end
-
-OVERLAY_WIDGETS = {
-    banner = PivotTradeBannerOverlay,
-    trade_overlay = PivotTradeOverlay,
-    ethics_warning = TradeEthicsWarningOverlay,
-}
-
-function main()
-    if not dfhack_flags or not dfhack_flags.module then
-        local focus = dfhack.gui.getCurFocus()
-        local stocks_open = (df.viewscreen_stocksst and df.viewscreen_stocksst:is_instance(focus)) or
-                            (type(focus) == 'string' and focus:find('Stocks'))
+    elseif mode == 'Stocks-For-Trader' then
+        -- Assuming same logic as stocks, just triggering the UI
+        show_trade_view()
+    else
+        -- Original behavior
         if trade.open or stocks_open then
-            trade_view = trade_view and trade_view:raise() or PivotTradeScreen{}:show()
+            show_trade_view()
         else
             print('The trade screen or stocks screen must be open to use this UI.')
         end
     end
 end
-
-main()
