@@ -235,6 +235,11 @@ function LuaTrade:init()
                     subviews=common.get_slider_widgets(self, '2'),
                 },
                 widgets.Panel{
+                    frame={t=0, l=0, w=38},
+                    visible=function() return self.cur_page == 3 end,
+                    subviews=common.get_slider_widgets(self, '3'),
+                },
+                widgets.Panel{
                     frame={b=0, l=40, r=0, h=2},
                     visible=function() return self.cur_page == 1 end,
                     subviews=common.get_advanced_filter_widgets(self, self.predicate_contexts[1]),
@@ -242,6 +247,11 @@ function LuaTrade:init()
                 widgets.Panel{
                     frame={t=1, l=40, r=0},
                     visible=function() return self.cur_page == 2 end,
+                    subviews=common.get_info_widgets(self, {trade.mer.buy_prices}, true, self.predicate_contexts[2]),
+                },
+                widgets.Panel{
+                    frame={t=1, l=40, r=0},
+                    visible=function() return self.cur_page == 3 end,
                     subviews=common.get_info_widgets(self, {trade.mer.buy_prices}, true, self.predicate_contexts[2]),
                 },
                 widgets.Panel{
@@ -807,11 +817,13 @@ function LuaTrade:cache_choices(list_idx, trade_bins)
     if self.choices[list_idx][trade_bins] then return self.choices[list_idx][trade_bins] end
 
     local goodflags = self.item_flags[list_idx]
+    if not goodflags then return {} end
     local trade_bins_choices, notrade_bins_choices = {}, {}
     local parent_data
     local mer = trade.open and trade.mer or nil
     for item_idx, item in ipairs(self.items[list_idx]) do
         local goodflag = goodflags[item_idx]
+        if not goodflag then goto continue end
         if not goodflag.contained then
             parent_data = nil
         end
@@ -872,6 +884,7 @@ function LuaTrade:cache_choices(list_idx, trade_bins)
             table.insert(notrade_bins_choices, choice)
         end
         if is_container then parent_data = data end
+        ::continue::
     end
 
     self.choices[list_idx][true] = trade_bins_choices
