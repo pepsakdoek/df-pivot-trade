@@ -299,6 +299,7 @@ function get_slider_widgets(self, suffix)
 end
 
 function is_tree_lover_caravan(caravan)
+    if not caravan then return false end
     local caravan_he = df.historical_entity.find(caravan.entity);
     if not caravan_he then return false end
     local wood_ethic = caravan_he.entity_raw.ethic[df.ethic_type.KILL_PLANT]
@@ -313,6 +314,7 @@ function is_tree_lover_caravan(caravan)
 end
 
 function is_animal_lover_caravan(caravan)
+    if not caravan then return false end
     local caravan_he = df.historical_entity.find(caravan.entity);
     if not caravan_he then return false end
     local animal_ethic = caravan_he.entity_raw.ethic[df.ethic_type.KILL_ANIMAL]

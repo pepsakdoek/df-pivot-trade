@@ -1430,7 +1430,7 @@ PivotTradeBannerOverlay.ATTRS{
     desc='Adds link to the trade screen to launch the DFHack trade UI.',
     default_pos={x=-31,y=-5},
     default_enabled=true,
-    viewscreens={'dwarfmode/Trade/Default', 'dwarfmode/Stocks', 'dfhack/lua/caravan/trade'},
+    viewscreens={'dwarfmode/Trade/Default', 'dfhack/lua/caravan/trade'},
     frame={w=25, h=1},
     frame_background=gui.CLEAR_PEN,
 }
