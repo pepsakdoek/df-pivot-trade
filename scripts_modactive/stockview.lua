@@ -11,6 +11,9 @@ local widgets = require('gui.widgets')
 local QTY_COL_WIDTH = 6
 local VALUE_COL_WIDTH = 9
 
+-- icon_width(2) + #STATUS_COLUMNS(20) + 1 (gap) + QTY_COL_WIDTH(6) + 2 (gap) + VALUE_COL_WIDTH(9)
+local SELECTION_WIDTH = 40
+
 local DEFAULT_CLASS_COL_WIDTH = 20
 local DEFAULT_SUBCLASS_COL_WIDTH = 15
 local DEFAULT_GROUPED_COL_WIDTH = 20
@@ -116,7 +119,7 @@ local uniform_assigned = {}
 -- hidden.
 local FILTERS = {
     -- 'noflags' has no test of its own: it is computed in get_item_attrs as
-    -- "matches none of the other filters", so it never overlaps another category.
+    -- \"matches none of the other filters\", so it never overlaps another category.
     -- it also has no letter, so it gets no status column.
     {id='noflags',         label='No status'},
     {id='forbid',          label='Forbidden',     letter='F', pen=COLOR_RED,          test=function(i) return i.flags.forbid end},
@@ -157,7 +160,7 @@ local function get_item_attrs(item)
             any = any or v
         end
     end
-    -- "No status" means the item matched none of the real categories above
+    -- \"No status\" means the item matched none of the real categories above
     attrs.noflags = not any
     return attrs
 end
@@ -273,15 +276,6 @@ StockView.ATTRS{
     resize_min={w=MIN_W, h=MIN_H},
 }
 
-local function get_entry_icon(data, item_id)
-    if data.selected == 0 then return nil end
-    if item_id then
-        return data.items[item_id].pending and common.ALL_PEN or nil
-    end
-    if data.quantity == data.selected then return common.ALL_PEN end
-    return common.SOME_PEN
-end
-
 local function hl_pen(color)
     return dfhack.pen.parse{fg=COLOR_BLACK, bg=color}
 end
@@ -328,41 +322,7 @@ local function item_status_text(d, item_id)
         d.per_item_value, 1, d.desc, d.class, d.subclass, d.grouped)
 end
 
--- recompute a group's has_<flag> aggregates from its items' attrs
-local function aggregate_has(d)
-    for _, f in ipairs(FILTERS) do d['has_'..f.id] = false end
-    for _, idata in pairs(d.items) do
-        for _, f in ipairs(FILTERS) do
-            if idata.attrs[f.id] then d['has_'..f.id] = true end
-        end
-    end
-end
-
--- click ranges for each header column, in header-local x coordinates
-local HEADER_RANGES = {}
-do
-    local x = 0
-    for _, f in ipairs(STATUS_COLUMNS) do
-        table.insert(HEADER_RANGES, {x1=x, x2=x, col=f.id})
-        x = x + 1
-    end
-    for _, dc in ipairs{{col='qty', gap=1, w=QTY_COL_WIDTH},
-                        {col='value', gap=2, w=VALUE_COL_WIDTH},
-                        {col='class', gap=2, w=20},
-                        {col='subclass', gap=2, w=15},
-                        {col='grouped', gap=2, w=20},
-                        {col='name', gap=2, w=1000}} do
-        local x1 = x
-        x = x1 + dc.gap + dc.w
-        table.insert(HEADER_RANGES, {x1=x1, x2=x-1, col=dc.col})
-    end
-end
-
-local function header_col_at(x)
-    for _, r in ipairs(HEADER_RANGES) do
-        if x >= r.x1 and x <= r.x2 then return r.col end
-    end
-end
+-- Click ranges for each header column are dynamically updated in update_column_layout
 
 -- the active status column is shown inverse-highlighted; the active data column
 -- gets a direction arrow and brighter text
@@ -395,7 +355,7 @@ function HeaderRow:onInput(keys)
     if keys._MOUSE_L then
         local x = self:getMousePos()
         local col
-        for _, r in ipairs(self.stockview.header_ranges) do
+        for _, r in ipairs(self.stockview.header_ranges or {}) do
             if x and x >= r.x1 and x <= r.x2 then
                 col = r.col
                 break
@@ -482,7 +442,9 @@ function StockView:set_column_widths(class_w, subclass_w, grouped_w)
     grouped_col_width = grouped_w
     
     self:update_column_layout()
-    self.subviews.header:setText(build_header_tokens(self.current_sort))
+    if self.subviews and self.subviews.header then
+        self.subviews.header:setText(build_header_tokens(self.current_sort))
+    end
     self:updateLayout()
     return true
 end
@@ -550,8 +512,8 @@ function StockView:init()
     self:addviews{
         widgets.CycleHotkeyLabel{
             view_id='sort',
-            frame={l=1, t=0, w=24},
-            label='Sort by:',
+            frame={l=1, t=0, w=22},
+            label='Sort:',
             key='CUSTOM_SHIFT_S',
             options=SORT_OPTIONS,
             initial_option=SELECTOR_SPECS.name.asc,
@@ -561,8 +523,20 @@ function StockView:init()
             end,
         },
         widgets.ToggleHotkeyLabel{
+            view_id='filters',
+            frame={l=24, t=0, w=24},
+            label='Show filters:',
+            key='CUSTOM_SHIFT_F',
+            options={
+                {label='Yes', value=true, pen=COLOR_GREEN},
+                {label='No', value=false}
+            },
+            initial_option=false,
+            on_change=function() self:updateLayout() end,
+        },
+        widgets.ToggleHotkeyLabel{
             view_id='auto_resize_cols',
-            frame={l=26, t=0, w=30},
+            frame={l=49, t=0, w=24},
             label='Auto cols:',
             key='CUSTOM_SHIFT_R',
             options={
@@ -574,7 +548,7 @@ function StockView:init()
         },
         widgets.EditField{
             view_id='search',
-            frame={l=58, t=0, r=1},
+            frame={l=75, t=0, r=1},
             label_text='Search: ',
             on_char=function(ch) return ch:match('[%w -]') end,
         },
@@ -585,24 +559,43 @@ function StockView:init()
                 widgets.Label{
                     frame={t=0, l=2},
                     text={
-                        {text="< Back", pen=COLOR_LIGHTRED, key="LEAVESCREEN", on_activate=function() self:go_back() end},
-                        {gap=1, text=function() return table.concat(self.path, " > ") end}
+                        {text=\"< Back\", pen=COLOR_LIGHTRED, key=\"LEAVESCREEN\", on_activate=function() self:go_back() end},
+                        {gap=1, text=function() return table.concat(self.path, \" > \") end}
                     },
                     on_click=function() self:go_back() end,
                 }
             }
         },
         widgets.Panel{
+            view_id='filter_panel',
             frame={t=2, l=0, r=0, h=filter_panel_h},
             frame_style=gui.FRAME_INTERIOR,
+            visible=function() return self.subviews.filters:getOptionValue() end,
             subviews=filter_subviews,
         },
         widgets.Panel{
+            view_id='list_panel',
             frame={t=list_t, l=0, r=0, b=4},
+            on_layout=function(panel)
+                if self.subviews.filters:getOptionValue() then
+                    panel.frame.t = list_t
+                else
+                    panel.frame.t = 2
+                end
+            end,
             subviews={
+                widgets.Label{
+                    view_id='click_guide',
+                    frame={t=0},
+                    text=function()
+                        local str = '+-- SELECT '..('-'):rep(SELECTION_WIDTH-11)..'+---- DRILL DOWN '..('-'):rep(30)..'+'
+                        return str
+                    end,
+                    text_pen=COLOR_LIGHTGREEN,
+                },
                 HeaderRow{
                     view_id='header',
-                    frame={t=0, l=2},
+                    frame={t=1, l=2},
                     text=build_header_tokens({col='name', dir='asc'}),
                     text_pen=COLOR_GRAY,
                     on_sort=self:callback('set_sort'),
@@ -612,14 +605,13 @@ function StockView:init()
                 -- right-aligned on the header line
                 widgets.Label{
                     view_id='totals',
-                    frame={t=0, r=1, w=TOTALS_W},
+                    frame={t=1, r=1, w=TOTALS_W},
                     text='',
                 },
                 widgets.FilteredList{
                     view_id='list',
-                    frame={l=0, t=2, r=0, b=0},
+                    frame={l=0, t=3, r=0, b=0},
                     icon_width=2,
-                    on_submit=self:callback('toggle_item'),
                     on_submit2=self:callback('toggle_range'),
                     on_select=self:callback('select_item'),
                 },
@@ -657,7 +649,7 @@ function StockView:init()
                 },
                 widgets.HotkeyLabel{
                     frame={t=0, l=55}, auto_width=true,
-                    label='Zoom', key='CUSTOM_CTRL_Z',
+                    label='Zoom', key='CUSTOM_CTRL_O',
                     on_activate=self:callback('act_zoom'),
                 },
                 widgets.HotkeyLabel{
@@ -701,30 +693,49 @@ function StockView:init()
     local list_widget = self.subviews.list.list
     local orig_onInput = list_widget.onInput
     list_widget.onInput = function(widget, keys)
+        if keys.SELECT then
+            local idx = widget:getSelected()
+            local choices = self.subviews.list:getVisibleChoices()
+            local choice = choices and choices[idx]
+            if choice then
+                self:toggle_item(idx, choice, nil) -- Passing nil for x means keyboard Enter
+                return true
+            end
+        end
+        if keys._STRING == 32 then -- Space
+            local idx = widget:getSelected()
+            local choices = self.subviews.list:getVisibleChoices()
+            local choice = choices and choices[idx]
+            if choice then
+                self:toggle_item_base(choice)
+                self:refresh_list()
+                return true
+            end
+        end
+
         local was_click = keys._MOUSE_L
         local handled = orig_onInput(widget, keys)
         if was_click and handled then
             local x, y = widget:getMousePos()
+            
+            -- Try fix scrollbar clicks being interpreted as row actions
+            local widget_w = nil
+            if widget.frame and widget.frame.w then widget_w = widget.frame.w end
+            if (not widget_w) and self.subviews.list and self.subviews.list.frame and self.subviews.list.frame.w then
+                widget_w = self.subviews.list.frame.w
+            end
+            if (not widget_w) and self.frame and self.frame.w then widget_w = self.frame.w end
+
             local scrollbar_reserved = 3
-            local widget_w = widget.frame.w
             if widget_w and widget_w > 0 and x and x >= widget_w - scrollbar_reserved then
                 return handled
             end
 
             local idx = widget:getSelected()
-            if not idx then return end
             local choices = self.subviews.list:getVisibleChoices()
-            if choices and choices[idx] then
-                -- Determine if click was in the selection/status area
-                -- icon_width(2) + #STATUS_COLUMNS + 1 (gap) + QTY_COL_WIDTH + 2 (gap) + VALUE_COL_WIDTH
-                local selection_width = 2 + #STATUS_COLUMNS + 1 + QTY_COL_WIDTH + 2 + VALUE_COL_WIDTH
-                if x and x < selection_width then
-                    self:toggle_item_base(choices[idx])
-                elseif choices[idx].data.is_group then
-                    table.insert(self.path, choices[idx].data.desc)
-                    self.subviews.list.list.page_top = 0
-                    self:refresh_list()
-                end
+            local choice = choices and choices[idx]
+            if choice then
+                self:toggle_item(idx, choice, x)
             end
         end
         return handled
@@ -777,7 +788,7 @@ function StockView:cache_choices()
         local value = dfhack.items.getValue(item)
         local desc = dfhack.items.getReadableDescription(item)
         local class, subclass = classifier.classify_item(item)
-        local group = get_generic_description(item) or "Other"
+        local group = get_generic_description(item) or \"Other\"
         local attrs = get_item_attrs(item)
 
         local search_str = ('%s %s %s %s'):format(desc, class, subclass, group)
@@ -874,7 +885,7 @@ function StockView:aggregate_choices(flat_choices, filter_str)
 
         if match then
             local key
-            local class_val, subclass_val, grouped_val = "", "", ""
+            local class_val, subclass_val, grouped_val = \"\", \"\", \"\"
 
             if #self.path == 0 then
                 key = d.class
@@ -964,7 +975,7 @@ function StockView:get_choices()
     local min_quality = self.subviews.min_quality:getOptionValue()
     local max_quality = self.subviews.max_quality:getOptionValue()
     local min_value_opt = self.subviews.min_value:getOptionValue()
-    -- the lowest value option (index 1) means "no minimum" so that 0-value
+    -- the lowest value option (index 1) means \"no minimum\" so that 0-value
     -- items (e.g. some refuse) remain visible by default
     local min_value = min_value_opt.index == 1 and 0 or min_value_opt.value
     local max_value = self.subviews.max_value:getOptionValue().value
@@ -1094,19 +1105,48 @@ function StockView:select_item(idx, choice)
     end
 end
 
-function StockView:toggle_item(idx, choice)
-    if choice.data.is_group then
-        table.insert(self.path, choice.data.desc)
-        self.subviews.list.list.page_top = 0
-        self:refresh_list()
-    else
+function StockView:toggle_item(idx, choice, x)
+    local modifiers = dfhack.internal.getModifiers()
+    local drill_down_start = SELECTION_WIDTH + 2
+
+    -- If we're at the lowest level, left click 'everywhere' should select / deselect
+    if #self.path == 3 then
         self:toggle_item_base(choice)
+        self:refresh_list()
+        return
+    end
+
+    if choice.data.is_group then
+        local drill_down = true
+        if x then
+            if x < SELECTION_WIDTH then
+                drill_down = false
+            end
+            
+            -- dead zone check
+            if x >= SELECTION_WIDTH and x < drill_down_start then
+                return
+            end
+        end
+
+        if not drill_down or modifiers.ctrl then
+            self:toggle_item_base(choice)
+            self:refresh_list()
+        else
+            table.insert(self.path, choice.data.desc)
+            self.subviews.list.list.page_top = 0
+            self:refresh_list()
+        end
+    else
+        -- Single items toggle on click/Enter
+        self:toggle_item_base(choice)
+        self:refresh_list()
     end
 end
 
 function StockView:toggle_range(idx, choice)
     if not self.prev_list_idx then
-        self:toggle_item(idx, choice)
+        self:toggle_item(idx, choice, nil)
         return
     end
     local choices = self.subviews.list:getVisibleChoices()
