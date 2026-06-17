@@ -119,7 +119,7 @@ local uniform_assigned = {}
 -- hidden.
 local FILTERS = {
     -- 'noflags' has no test of its own: it is computed in get_item_attrs as
-    -- \"matches none of the other filters\", so it never overlaps another category.
+    -- "matches none of the other filters", so it never overlaps another category.
     -- it also has no letter, so it gets no status column.
     {id='noflags',         label='No status'},
     {id='forbid',          label='Forbidden',     letter='F', pen=COLOR_RED,          test=function(i) return i.flags.forbid end},
@@ -160,7 +160,7 @@ local function get_item_attrs(item)
             any = any or v
         end
     end
-    -- \"No status\" means the item matched none of the real categories above
+    -- "No status" means the item matched none of the real categories above
     attrs.noflags = not any
     return attrs
 end
@@ -492,7 +492,7 @@ function StockView:init()
     -- two rows reserved at the top: the show/hide/invert controls and a gap
     local content_rows = math.max(SLIDER_ROWS, 2 + filter_rows)
     local filter_panel_h = content_rows + 2
-    local list_t = 2 + filter_panel_h
+    local list_t = 1 + filter_panel_h
 
     local filter_subviews = {
         widgets.Panel{
@@ -559,8 +559,8 @@ function StockView:init()
                 widgets.Label{
                     frame={t=0, l=2},
                     text={
-                        {text=\"< Back\", pen=COLOR_LIGHTRED, key=\"LEAVESCREEN\", on_activate=function() self:go_back() end},
-                        {gap=1, text=function() return table.concat(self.path, \" > \") end}
+                        {text="< Back", pen=COLOR_LIGHTRED, key="LEAVESCREEN", on_activate=function() self:go_back() end},
+                        {gap=1, text=function() return table.concat(self.path, " > ") end}
                     },
                     on_click=function() self:go_back() end,
                 }
@@ -570,27 +570,30 @@ function StockView:init()
             view_id='filter_panel',
             frame={t=2, l=0, r=0, h=filter_panel_h},
             frame_style=gui.FRAME_INTERIOR,
-            visible=function() return self.subviews.filters:getOptionValue() end,
+            visible=function() return self.subviews and self.subviews.filters and self.subviews.filters:getOptionValue() end,
             subviews=filter_subviews,
         },
         widgets.Panel{
             view_id='list_panel',
             frame={t=list_t, l=0, r=0, b=4},
             on_layout=function(panel)
+                local panel_frame = self.subviews.list_panel.frame
                 if self.subviews.filters:getOptionValue() then
-                    panel.frame.t = list_t
+                    panel_frame.t = 2
                 else
-                    panel.frame.t = 2
+                    panel_frame.t = list_t + 1
                 end
             end,
             subviews={
                 widgets.Label{
                     view_id='click_guide',
                     frame={t=0},
-                    text=function()
-                        local str = '+-- SELECT '..('-'):rep(SELECTION_WIDTH-11)..'+---- DRILL DOWN '..('-'):rep(30)..'+'
-                        return str
-                    end,
+                    text= "+---- SELECT -----------------------------+---- DRILL DOWN ------------------------------+",
+                    -- Functions in text for some reason results in cv nil value errors
+                    -- function()
+                    --     local str = '+-- SELECT '..('-'):rep(SELECTION_WIDTH-11)..'+---- DRILL DOWN '..('-'):rep(30)..'+'
+                    --     return str
+                    -- end,
                     text_pen=COLOR_LIGHTGREEN,
                 },
                 HeaderRow{
@@ -698,7 +701,7 @@ function StockView:init()
             local choices = self.subviews.list:getVisibleChoices()
             local choice = choices and choices[idx]
             if choice then
-                self:toggle_item(idx, choice, nil) -- Passing nil for x means keyboard Enter
+                self:toggle_item(idx, choice, nil) -- nil means keyboard Enter
                 return true
             end
         end
@@ -788,7 +791,7 @@ function StockView:cache_choices()
         local value = dfhack.items.getValue(item)
         local desc = dfhack.items.getReadableDescription(item)
         local class, subclass = classifier.classify_item(item)
-        local group = get_generic_description(item) or \"Other\"
+        local group = get_generic_description(item) or "Other"
         local attrs = get_item_attrs(item)
 
         local search_str = ('%s %s %s %s'):format(desc, class, subclass, group)
@@ -885,7 +888,7 @@ function StockView:aggregate_choices(flat_choices, filter_str)
 
         if match then
             local key
-            local class_val, subclass_val, grouped_val = \"\", \"\", \"\"
+            local class_val, subclass_val, grouped_val = "", "", ""
 
             if #self.path == 0 then
                 key = d.class
@@ -975,7 +978,7 @@ function StockView:get_choices()
     local min_quality = self.subviews.min_quality:getOptionValue()
     local max_quality = self.subviews.max_quality:getOptionValue()
     local min_value_opt = self.subviews.min_value:getOptionValue()
-    -- the lowest value option (index 1) means \"no minimum\" so that 0-value
+    -- the lowest value option (index 1) means "no minimum" so that 0-value
     -- items (e.g. some refuse) remain visible by default
     local min_value = min_value_opt.index == 1 and 0 or min_value_opt.value
     local max_value = self.subviews.max_value:getOptionValue().value
