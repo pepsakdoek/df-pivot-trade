@@ -531,7 +531,7 @@ function StockView:init()
                 {label='Yes', value=true, pen=COLOR_GREEN},
                 {label='No', value=false}
             },
-            initial_option=false,
+            initial_option=true,
             on_change=function() self:updateLayout() end,
         },
         widgets.ToggleHotkeyLabel{
@@ -579,9 +579,9 @@ function StockView:init()
             on_layout=function(panel)
                 local panel_frame = self.subviews.list_panel.frame
                 if self.subviews.filters:getOptionValue() then
-                    panel_frame.t = 2
-                else
                     panel_frame.t = list_t + 1
+                else
+                    panel_frame.t = 2
                 end
             end,
             subviews={
