@@ -133,7 +133,7 @@ local FILTERS = {
     {id='construction',    label='In [C]onstruction',   letter='C', pen=COLOR_BROWN,        test=function(i) return i.flags.construction end},
     {id='in_building',     label='In [B]uilding',       letter='B', pen=COLOR_YELLOW,       test=function(i) return i.flags.in_building end},
     {id='garbage_collect', label='[G]arbage',           letter='G', pen=COLOR_DARKGREY,     test=function(i) return i.flags.garbage_collect end},
-    {id='imported',        label='[I]mported',          letter='P', pen=COLOR_BROWN,        test=function(i) return i.flags.foreign end},
+    {id='imported',        label='Im[p]orted',          letter='P', pen=COLOR_BROWN,        test=function(i) return i.flags.foreign end},
     {id='trader',          label='Carava[n] Owned',     letter='N', pen=COLOR_LIGHTGREEN,   test=function(i) return i.flags.trader end},
     {id='hostile',         label='Hosti[l]e Owned',     letter='L', pen=COLOR_RED,          test=function(i) return i.flags.hostile end},
     {id='dead_dwarf',      label='Bur[y]',              letter='Y', pen=COLOR_DARKGREY,     test=function(i) return i.flags.dead_dwarf end},
@@ -369,8 +369,8 @@ function HeaderRow:onInput(keys)
     return HeaderRow.super.onInput(self, keys)
 end
 
-local FILTER_COL_W = 23
-local FILTER_LABEL_W = 13
+local FILTER_COL_W = 30
+local FILTER_LABEL_W = 20
 
 -- three-state filters, styled like the squad-assignment screen: Include (no
 -- constraint, default), Only (require), Exclude (exclude, and wins). cycling in
