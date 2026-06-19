@@ -122,26 +122,26 @@ local FILTERS = {
     -- "matches none of the other filters", so it never overlaps another category.
     -- it also has no letter, so it gets no status column.
     {id='noflags',         label='No status'},
-    {id='forbid',          label='Forbidden',     letter='F', pen=COLOR_RED,          test=function(i) return i.flags.forbid end},
-    {id='dump',            label='Dump',          letter='D', pen=COLOR_LIGHTMAGENTA, test=function(i) return i.flags.dump end},
-    {id='melt',            label='Melt',          letter='M', pen=COLOR_LIGHTBLUE,    test=function(i) return i.flags.melt end},
-    {id='trade',           label='Trade',         letter='T', pen=COLOR_LIGHTGREEN,   test=is_trade_marked},
-    {id='hidden',          label='Hidden',        letter='H', pen=COLOR_GREY,         test=function(i) return i.flags.hidden end},
-    {id='owned',           label='Owned',         letter='O', pen=COLOR_GREEN,        test=function(i) return i.flags.owned end},
-    {id='uniform',         label='Uniform',       letter='U', pen=COLOR_MAGENTA,      test=function(i) return uniform_assigned[i.id] or false end},
-    {id='in_inventory',    label='In inventory',  letter='I', pen=COLOR_WHITE,        test=function(i) return i.flags.in_inventory end},
-    {id='construction',    label='Construction',  letter='C', pen=COLOR_BROWN,        test=function(i) return i.flags.construction end},
-    {id='in_building',     label='In building',   letter='B', pen=COLOR_YELLOW,       test=function(i) return i.flags.in_building end},
-    {id='garbage_collect', label='Garbage',       letter='G', pen=COLOR_DARKGREY,     test=function(i) return i.flags.garbage_collect end},
-    {id='imported',        label='Imported',      letter='P', pen=COLOR_BROWN,        test=function(i) return i.flags.foreign end},
-    {id='trader',          label='Caravan',       letter='N', pen=COLOR_LIGHTGREEN,   test=function(i) return i.flags.trader end},
-    {id='hostile',         label='Hostile',       letter='L', pen=COLOR_RED,          test=function(i) return i.flags.hostile end},
-    {id='dead_dwarf',      label='Bury',          letter='Y', pen=COLOR_DARKGREY,     test=function(i) return i.flags.dead_dwarf end},
-    {id='caged',           label='Caged',         letter='A', pen=COLOR_CYAN,         test=is_caged},
-    {id='in_job',          label='In job',        letter='J', pen=COLOR_LIGHTCYAN,    test=function(i) return i.flags.in_job end},
-    {id='on_fire',         label='On fire',       letter='E', pen=COLOR_LIGHTRED,     test=function(i) return i.flags.on_fire end},
-    {id='rotten',          label='Rotten',        letter='R', pen=COLOR_BROWN,        test=function(i) return i.flags.rotten end},
-    {id='spider_web',      label='Spider web',    letter='S', pen=COLOR_GREY,         test=function(i) return i.flags.spider_web end},
+    {id='forbid',          label='[F]orbidden',     letter='F', pen=COLOR_RED,          test=function(i) return i.flags.forbid end},
+    {id='dump',            label='[D]ump',          letter='D', pen=COLOR_LIGHTMAGENTA, test=function(i) return i.flags.dump end},
+    {id='melt',            label='[M]elt',          letter='M', pen=COLOR_LIGHTBLUE,    test=function(i) return i.flags.melt end},
+    {id='trade',           label='[T]rade',         letter='T', pen=COLOR_LIGHTGREEN,   test=is_trade_marked},
+    {id='hidden',          label='[H]idden',        letter='H', pen=COLOR_GREY,         test=function(i) return i.flags.hidden end},
+    {id='owned',           label='[O]wned',         letter='O', pen=COLOR_GREEN,        test=function(i) return i.flags.owned end},
+    {id='uniform',         label='In [U]niform',    letter='U', pen=COLOR_MAGENTA,      test=function(i) return uniform_assigned[i.id] or false end},
+    {id='in_inventory',    label='In [I]nventory',  letter='I', pen=COLOR_WHITE,        test=function(i) return i.flags.in_inventory end},
+    {id='construction',    label='[C]onstruction',  letter='C', pen=COLOR_BROWN,        test=function(i) return i.flags.construction end},
+    {id='in_building',     label='In [B]uilding',   letter='B', pen=COLOR_YELLOW,       test=function(i) return i.flags.in_building end},
+    {id='garbage_collect', label='[G]arbage',       letter='G', pen=COLOR_DARKGREY,     test=function(i) return i.flags.garbage_collect end},
+    {id='imported',        label='[I]mported',      letter='P', pen=COLOR_BROWN,        test=function(i) return i.flags.foreign end},
+    {id='trader',          label='Carava[n] Owned', letter='N', pen=COLOR_LIGHTGREEN,   test=function(i) return i.flags.trader end},
+    {id='hostile',         label='Hosti[l]e Owned', letter='L', pen=COLOR_RED,          test=function(i) return i.flags.hostile end},
+    {id='dead_dwarf',      label='Bur[y]',          letter='Y', pen=COLOR_DARKGREY,     test=function(i) return i.flags.dead_dwarf end},
+    {id='caged',           label='C[a]ged',         letter='A', pen=COLOR_CYAN,         test=is_caged},
+    {id='in_job',          label='In [J]ob',        letter='J', pen=COLOR_LIGHTCYAN,    test=function(i) return i.flags.in_job end},
+    {id='on_fire',         label='On fir[e]',       letter='E', pen=COLOR_LIGHTRED,     test=function(i) return i.flags.on_fire end},
+    {id='rotten',          label='[R]otten',        letter='R', pen=COLOR_BROWN,        test=function(i) return i.flags.rotten end},
+    {id='spider_web',      label='[S]pider web',    letter='S', pen=COLOR_GREY,         test=function(i) return i.flags.spider_web end},
 }
 
 -- the subset of filters that get a single-letter status column, in order
@@ -492,7 +492,7 @@ function StockView:init()
     -- two rows reserved at the top: the show/hide/invert controls and a gap
     local content_rows = math.max(SLIDER_ROWS, 2 + filter_rows)
     local filter_panel_h = content_rows + 2
-    local list_t = 1 + filter_panel_h
+    local list_t = 3 + filter_panel_h
 
     local filter_subviews = {
         widgets.Panel{
@@ -570,7 +570,15 @@ function StockView:init()
             view_id='filter_panel',
             frame={t=2, l=0, r=0, h=filter_panel_h},
             frame_style=gui.FRAME_INTERIOR,
-            visible=function() return self.subviews and self.subviews.filters and self.subviews.filters:getOptionValue() end,
+            visible=function() return self.subviews.filters:getOptionValue() end,
+            on_layout=function()
+                local panel_frame = self.subviews.list_panel.frame
+                if self.subviews.filters:getOptionValue() then
+                    panel_frame.t = filter_panel_h + 3
+                else
+                    panel_frame.t = 2
+                end
+            end,
             subviews=filter_subviews,
         },
         widgets.Panel{
@@ -578,11 +586,7 @@ function StockView:init()
             frame={t=list_t, l=0, r=0, b=4},
             on_layout=function(panel)
                 local panel_frame = self.subviews.list_panel.frame
-                if self.subviews.filters:getOptionValue() then
-                    panel_frame.t = list_t + 1
-                else
-                    panel_frame.t = 2
-                end
+                panel_frame.t = list_t
             end,
             subviews={
                 widgets.Label{
