@@ -688,7 +688,7 @@ function StockView:init()
                     on_activate=self:callback('drill_down_all_visible'),
                 },
                 widgets.HotkeyLabel{
-                    frame={t=1, l=24}, auto_width=true,
+                    frame={t=1, l=34}, auto_width=true,
                     label='Drill up', key='CUSTOM_CTRL_PGUP',
                     on_activate=self:callback('go_back'),
                 },

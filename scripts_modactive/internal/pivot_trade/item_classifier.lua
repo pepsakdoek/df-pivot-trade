@@ -2,9 +2,28 @@
 -- local M = {}
 
 --------------------------------------------------------------------------
--- Current Issues with Classifier (and Other):
--- Leather is not under Textiles & Leather when 'trade contents only' is selected
---  It falls under 'containers' when Trade bin with contents is selected
+-- Current Issues with Classifier (and the 'Other' category):
+--
+-- * Leather is not under Textiles & Leather when 'trade contents only' is selected
+--  * It falls under 'containers' when Trade bin with contents is selected
+-- * Scrolls (completed works) are currently under 'Tools & Equipment'
+-- * Amulets & Bracelets should be jewelery
+--  * Might be an exception case for artifacts(?) amulet/bracelet
+--   * Fort has bracelet, amulet, ring and earring artifacts and all under other
+--  * Crowns and Sceptres should be under Jewelery, but maybe the class should be Jewelry and Accessories?
+-- * Bodies and Slabs sare not classified (should be a new class) -- for stock view
+-- * Catapult parts and bolt thrower parts should probably have a new class
+-- * Furniture is likely unclassified
+--  * Bookcases are currently under general tools, and should rather be in Furniture
+--  * Coffins? Maybe burial should be a class?
+-- * Grates are... unclassified. Not sure where it should be. With Doors and hatches
+-- * Mechanisms should be under Tools somewhere (traps maybe)
+-- * Dyes... generally found in bags / barrels, but themselves should be classified somewhere
+-- * Pipe sections should probaly fall under mechanisms which might be in traps/Tools
+-- * Statues should go with furniture
+-- * Totems ... They are currently under Totems in the Stocks screen. Other -> Totems?
+-- * Windows should be in furniture (?)
+-- * Some grouped tallow meals fall under other for some reason
 ---------------------------------------------------------------------------
 
 

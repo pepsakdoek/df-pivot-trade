@@ -68,6 +68,23 @@ local function get_generic_description(item)
 end
 
 
+-- returns true if value appears in a path level (an array of strings)
+local function path_contains(path_level, value)
+    for _, v in ipairs(path_level) do
+        if v == value then return true end
+    end
+    return false
+end
+
+-- formats a path level (array of strings) for breadcrumb display;
+-- collapses to 'Multiple' if the joined string would exceed 60 chars
+local function path_level_str(path_level)
+    local s = table.concat(path_level, ', ')
+    if #s > 60 then return 'Multiple' end
+    return s
+end
+
+
 
 function LuaTrade:init()
     during_init = true
@@ -152,7 +169,6 @@ function LuaTrade:init()
             labels={
                 'Caravan goods',
                 'Depot goods',
-                'Fort goods',
             },
             on_select=function(idx)
                 local list = self.subviews.list
@@ -262,7 +278,13 @@ function LuaTrade:init()
                             frame={t=0, l=0},
                             text={
                                 {text="< Back", pen=COLOR_LIGHTRED, key="CUSTOM_ESC", on_activate=function() self:go_back() end},
-                                {gap=1, text=function() return table.concat(self.path, " > ") end}
+                                {gap=1, text=function()
+                                    local parts = {}
+                                    for _, level in ipairs(self.path) do
+                                        table.insert(parts, path_level_str(level))
+                                    end
+                                    return table.concat(parts, ' > ')
+                                end}
                             },
                             on_click=function() self:go_back() end,
                         }
@@ -379,6 +401,20 @@ function LuaTrade:init()
             text='Click X/Cnt/Value to mark/unmark for trade. Click Class/Subclass/Grouped/Item Description to drill down. ENTER to drill down, SPACE to select.',
         },
         widgets.HotkeyLabel{
+            frame={l=0, b=1},
+            label='Drill down all',
+            key='CUSTOM_CTRL_PGDN',
+            on_activate=self:callback('drill_down_all_visible'),
+            auto_width=true,
+        },
+        widgets.HotkeyLabel{
+            frame={l=34, b=1},
+            label='Drill up',
+            key='CUSTOM_CTRL_PGUP',
+            on_activate=self:callback('go_back'),
+            auto_width=true,
+        },
+        widgets.HotkeyLabel{
             frame={l=0, b=0},
             label='Select all/none',
             key='CUSTOM_CTRL_N',
@@ -481,7 +517,7 @@ function LuaTrade:init()
             if not idx then return end
             local choices = self.subviews.list:getVisibleChoices()
             if choices and choices[idx] then
-                self:toggle_item(idx, choices[idx], false)
+                self:toggle_item(idx, choices[idx], nil)
                 return true
             end
         end
@@ -521,7 +557,7 @@ function LuaTrade:init()
             if not idx then return end
             local choices = self.subviews.list:getVisibleChoices()
             if choices and choices[idx] then
-                self:toggle_item(idx, choices[idx], true)
+                self:toggle_item(idx, choices[idx], x)
             end
         end
         return handled
@@ -653,6 +689,14 @@ function LuaTrade:deactivate_search()
 end
 
 function LuaTrade:onInput(keys)
+    if keys.CUSTOM_CTRL_PGUP and #self.path > 0 then
+        self:go_back()
+        return true
+    end
+    if keys.CUSTOM_CTRL_PGDN then
+        self:drill_down_all_visible()
+        return true
+    end
     if self.search_active then
         if keys.LEAVESCREEN or keys.CUSTOM_ESC or keys.CUSTOM_ALT_S then
             self:deactivate_search()
@@ -687,6 +731,28 @@ function LuaTrade:go_back()
         self.subviews.list.list.page_top = 0
         self:refresh_list()
     end
+end
+
+-- Drill down into ALL currently visible group rows at once.
+-- Each visible group's key is collected into a single path level (an array),
+-- so aggregate_choices shows the union of all their children on the next level.
+function LuaTrade:drill_down_all_visible()
+    if #self.path >= 3 then return end
+    local keys = {}
+    local seen = {}
+    for _, choice in ipairs(self.subviews.list:getVisibleChoices()) do
+        if choice.data.is_group then
+            local desc = choice.data.desc
+            if desc and not seen[desc] then
+                seen[desc] = true
+                table.insert(keys, desc)
+            end
+        end
+    end
+    if #keys == 0 then return end
+    table.insert(self.path, keys)
+    self.subviews.list.list.page_top = 0
+    self:refresh_list()
 end
 
 function LuaTrade:is_sort_fn_valid(sort_fn)
@@ -949,7 +1015,7 @@ function LuaTrade:aggregate_choices(flat_choices, filter_str)
         local filtered = {}
         for _, choice in ipairs(flat_choices) do
             local d = choice.data
-            if d.class == self.path[1] and d.subclass == self.path[2] and d.grouped == self.path[3] then
+            if path_contains(self.path[1], d.class) and path_contains(self.path[2], d.subclass) and path_contains(self.path[3], d.grouped) then
                 table.insert(filtered, choice)
             end
         end
@@ -968,8 +1034,8 @@ function LuaTrade:aggregate_choices(flat_choices, filter_str)
 
         local match = true
         for i, p in ipairs(self.path) do
-            if i == 1 and d.class ~= p then match = false break end
-            if i == 2 and d.subclass ~= p then match = false break end
+            if i == 1 and not path_contains(p, d.class) then match = false break end
+            if i == 2 and not path_contains(p, d.subclass) then match = false break end
         end
         
         if match then
@@ -981,12 +1047,12 @@ function LuaTrade:aggregate_choices(flat_choices, filter_str)
                 class_val = key
             elseif #self.path == 1 then 
                 key = d.subclass 
-                class_val = self.path[1]
+                class_val = d.class
                 subclass_val = key
             elseif #self.path == 2 then 
                 key = d.grouped 
-                class_val = self.path[1]
-                subclass_val = self.path[2]
+                class_val = d.class
+                subclass_val = d.subclass
                 grouped_val = key
             end
             
@@ -1126,33 +1192,42 @@ function LuaTrade:toggle_group(choice, target_value)
 end
 
 
-function LuaTrade:toggle_item(idx, choice, is_click)
+function LuaTrade:toggle_item(idx, choice, x)
     local modifiers = dfhack.internal.getModifiers()
-    local list_widget = self.subviews.list.list
     local selection_width = STATUS_COL_WIDTH + 1 + COUNT_COL_WIDTH + 1 + VALUE_COL_WIDTH + 1
+    local drill_down_start = selection_width + 2
     
+    -- If we're at the lowest level, left click 'everywhere' should select / deselect
+    if #self.path == 3 then
+        self:toggle_item_base(choice)
+        self:refresh_list()
+        return
+    end
+
     if choice.data.is_group then
-        -- if ctrl is pressed, toggle the group regardless of click position
         local drill_down = true
-        if is_click then
-            local x, y = list_widget:getMousePos()
-            if x and x < selection_width then
+        if x then
+            if x < selection_width then
                 drill_down = false
+            end
+            
+            -- dead zone check
+            if x >= selection_width and x < drill_down_start then
+                return
             end
         end
         
-        local drill_down_start = selection_width + 2
-        if x and x < drill_down_start then
-            -- in the dead zone, do nothing
-        elseif not drill_down or modifiers.ctrl then
-             self:toggle_group(choice)
+        if not drill_down or modifiers.ctrl then
+            self:toggle_item_base(choice)
+            self:refresh_list()
         else
-            table.insert(self.path, choice.data.desc)
+            table.insert(self.path, {choice.data.desc})
             self.subviews.list.list.page_top = 0
             self:refresh_list()
         end
     else
-        self:toggle_item_base_internal(choice)
+        self:toggle_item_base(choice)
+        self:refresh_list()
     end
 end
 
@@ -1392,7 +1467,11 @@ end
 
 function PivotTradeScreen:onInput(keys)
     if self.reset_pending then return false end
-    if (keys.LEAVESCREEN or keys._MOUSE_R) and self.trade_window:onBack() then
+    if (keys.LEAVESCREEN or keys._MOUSE_R or keys.CUSTOM_CTRL_PGUP) and self.trade_window:onBack() then
+        return true
+    end
+    if keys.CUSTOM_CTRL_PGDN then
+        self.trade_window:drill_down_all_visible()
         return true
     end
 
