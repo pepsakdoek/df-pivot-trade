@@ -281,6 +281,22 @@ local function hl_pen(color)
     return dfhack.pen.parse{fg=COLOR_BLACK, bg=color}
 end
 
+-- returns true if value appears in a path level (an array of strings)
+local function path_contains(path_level, value)
+    for _, v in ipairs(path_level) do
+        if v == value then return true end
+    end
+    return false
+end
+
+-- formats a path level (array of strings) for breadcrumb display;
+-- collapses to 'Multiple' if the joined string would exceed 60 chars
+local function path_level_str(path_level)
+    local s = table.concat(path_level, ', ')
+    if #s > 60 then return 'Multiple' end
+    return s
+end
+
 -- one colored single-letter cell per status column (blank when inactive)
 local function make_status_tokens(has_count, group_size)
     local tokens = {}
@@ -561,7 +577,13 @@ function StockView:init()
                     frame={t=0, l=2},
                     text={
                         {text="< Back", pen=COLOR_LIGHTRED, key="LEAVESCREEN", on_activate=function() self:go_back() end},
-                        {gap=1, text=function() return table.concat(self.path, " > ") end}
+                        {gap=1, text=function()
+                            local parts = {}
+                            for _, level in ipairs(self.path) do
+                                table.insert(parts, path_level_str(level))
+                            end
+                            return table.concat(parts, ' > ')
+                        end}
                     },
                     on_click=function() self:go_back() end,
                 }
@@ -659,6 +681,16 @@ function StockView:init()
                     frame={t=0, l=55}, auto_width=true,
                     label='Zoom', key='CUSTOM_CTRL_O',
                     on_activate=self:callback('act_zoom'),
+                },
+                widgets.HotkeyLabel{
+                    frame={t=1, l=0}, auto_width=true,
+                    label='Drill down all', key='CUSTOM_CTRL_PGDN',
+                    on_activate=self:callback('drill_down_all_visible'),
+                },
+                widgets.HotkeyLabel{
+                    frame={t=1, l=24}, auto_width=true,
+                    label='Drill up', key='CUSTOM_CTRL_PGUP',
+                    on_activate=self:callback('go_back'),
                 },
                 widgets.HotkeyLabel{
                     frame={t=2, l=0}, auto_width=true,
@@ -764,6 +796,14 @@ function StockView:onInput(keys)
         self:go_back()
         return true
     end
+    if keys.CUSTOM_CTRL_PGUP and #self.path > 0 then
+        self:go_back()
+        return true
+    end
+    if keys.CUSTOM_CTRL_PGDN then
+        self:drill_down_all_visible()
+        return true
+    end
     return StockView.super.onInput(self, keys)
 end
 
@@ -773,6 +813,28 @@ function StockView:go_back()
         self.subviews.list.list.page_top = 0
         self:refresh_list()
     end
+end
+
+-- Drill down into ALL currently visible group rows at once.
+-- Each visible group's key is collected into a single path level (an array),
+-- so aggregate_choices shows the union of all their children on the next level.
+function StockView:drill_down_all_visible()
+    if #self.path >= 3 then return end
+    local keys = {}
+    local seen = {}
+    for _, choice in ipairs(self.subviews.list:getVisibleChoices()) do
+        if choice.data.is_group then
+            local desc = choice.data.desc
+            if desc and not seen[desc] then
+                seen[desc] = true
+                table.insert(keys, desc)
+            end
+        end
+    end
+    if #keys == 0 then return end
+    table.insert(self.path, keys)
+    self.subviews.list.list.page_top = 0
+    self:refresh_list()
 end
 
 -- -------------------
@@ -868,7 +930,7 @@ function StockView:aggregate_choices(flat_choices, filter_str)
         local filtered = {}
         for _, choice in ipairs(flat_choices) do
             local d = choice.data
-            if d.class == self.path[1] and d.subclass == self.path[2] and d.grouped == self.path[3] then
+            if path_contains(self.path[1], d.class) and path_contains(self.path[2], d.subclass) and path_contains(self.path[3], d.grouped) then
                 choice.text = item_status_text(d, choice.item_id)
                 table.insert(filtered, choice)
             end
@@ -887,8 +949,8 @@ function StockView:aggregate_choices(flat_choices, filter_str)
 
         local match = true
         for i, p in ipairs(self.path) do
-            if i == 1 and d.class ~= p then match = false break end
-            if i == 2 and d.subclass ~= p then match = false break end
+            if i == 1 and not path_contains(p, d.class) then match = false break end
+            if i == 2 and not path_contains(p, d.subclass) then match = false break end
         end
 
         if match then
@@ -900,12 +962,12 @@ function StockView:aggregate_choices(flat_choices, filter_str)
                 class_val = key
             elseif #self.path == 1 then
                 key = d.subclass
-                class_val = self.path[1]
+                class_val = d.class
                 subclass_val = key
             elseif #self.path == 2 then
                 key = d.grouped
-                class_val = self.path[1]
-                subclass_val = self.path[2]
+                class_val = d.class
+                subclass_val = d.subclass
                 grouped_val = key
             end
 
@@ -1141,7 +1203,7 @@ function StockView:toggle_item(idx, choice, x)
             self:toggle_item_base(choice)
             self:refresh_list()
         else
-            table.insert(self.path, choice.data.desc)
+            table.insert(self.path, {choice.data.desc})
             self.subviews.list.list.page_top = 0
             self:refresh_list()
         end
