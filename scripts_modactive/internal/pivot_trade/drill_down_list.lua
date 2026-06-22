@@ -20,6 +20,7 @@ local MIN_GROUPED_COL_WIDTH = #('Grouped')
 local class_col_width = DEFAULT_CLASS_COL_WIDTH
 local subclass_col_width = DEFAULT_SUBCLASS_COL_WIDTH
 local grouped_col_width = DEFAULT_GROUPED_COL_WIDTH
+local desc_col_width = MAX_COL_WIDTH
 
 local TOTALS_W = 26
 local MAX_COL_WIDTH = 60
@@ -322,7 +323,7 @@ function DrillDownList:make_choice_text(status, value, qty, desc, class, subclas
     table.insert(text, {gap=2, width=class_col_width, text=class or '', pen=COLOR_CYAN})
     table.insert(text, {gap=2, width=subclass_col_width, text=subclass or '', pen=COLOR_GREY})
     table.insert(text, {gap=2, width=grouped_col_width, text=grouped or '', pen=COLOR_CYAN})
-    table.insert(text, {gap=2, width=MAX_COL_WIDTH, text=desc or ''})
+    table.insert(text, {gap=2, width=desc_col_width, text=desc or ''})
     return text
 end
 
@@ -357,7 +358,7 @@ function DrillDownList:build_header_tokens(sort)
     table.insert(text, data_header(2, class_col_width, 'class', 'class'))
     table.insert(text, data_header(2, subclass_col_width, 'subclass', 'subclass'))
     table.insert(text, data_header(2, grouped_col_width, 'grouped', 'grouped'))
-    table.insert(text, data_header(2, MAX_COL_WIDTH, 'name', 'item'))
+    table.insert(text, data_header(2, desc_col_width, 'name', 'item'))
     return text
 end
 
@@ -415,7 +416,7 @@ function DrillDownList:update_column_layout()
                         {col='class', gap=2, w=class_col_width},
                         {col='subclass', gap=2, w=subclass_col_width},
                         {col='grouped', gap=2, w=grouped_col_width},
-                        {col='name', gap=2, w=MAX_COL_WIDTH}} do
+                        {col='name', gap=2, w=desc_col_width}} do
         local x1 = x; x = x1 + dc.gap + dc.w
         table.insert(ranges, {x1=x1, x2=x-1, col=dc.col})
     end
@@ -426,7 +427,15 @@ function DrillDownList:set_column_widths(class_w, subclass_w, grouped_w)
     class_w = math.max(MIN_CLASS_COL_WIDTH, class_w or DEFAULT_CLASS_COL_WIDTH)
     subclass_w = math.max(MIN_SUBCLASS_COL_WIDTH, subclass_w or DEFAULT_SUBCLASS_COL_WIDTH)
     grouped_w = math.max(MIN_GROUPED_COL_WIDTH, grouped_w or DEFAULT_GROUPED_COL_WIDTH)
-    if class_w == class_col_width and subclass_w == subclass_col_width and grouped_w == grouped_col_width then
+    local old_desc = desc_col_width
+    local sw = self.frame and self.frame.w
+    if sw then
+        local status_count = #self:get_status_columns_with_letters()
+        local other_width = 28 + status_count + class_w + subclass_w + grouped_w
+        local max_desc = math.max(20, sw - other_width)
+        desc_col_width = math.min(MAX_COL_WIDTH, max_desc)
+    end
+    if class_w == class_col_width and subclass_w == subclass_col_width and grouped_w == grouped_col_width and desc_col_width == old_desc then
         return false
     end
     class_col_width = class_w
@@ -649,13 +658,8 @@ function DrillDownList:build_ui()
         if was_click and handled then
             local x = widget:getMousePos()
             if x then
-                local widget_w
-                if widget.frame and widget.frame.w then widget_w = widget.frame.w end
-                if (not widget_w) and self.subviews.list and self.subviews.list.frame and self.subviews.list.frame.w then
-                    widget_w = self.subviews.list.frame.w
-                end
-                if (not widget_w) and self.frame and self.frame.w then widget_w = self.frame.w end
-                local scrollbar_reserved = 3
+                local widget_w = self.frame and self.frame.w
+                local scrollbar_reserved = 5
                 if widget_w and widget_w > 0 and x >= widget_w - scrollbar_reserved then
                     return handled
                 end
@@ -824,7 +828,7 @@ function DrillDownList:aggregate_choices(flat_choices, filter_str)
         }
         for _, f in ipairs(self:get_status_columns()) do d['count_'..f.id] = g['count_'..f.id] end
 
-        local combined = {key, g.class, g.subclass, g.grouped}
+        local combined = {key}
         for _,c in ipairs(g.items) do
             if c.search_key then table.insert(combined, c.search_key) end
         end

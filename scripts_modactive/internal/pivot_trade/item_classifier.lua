@@ -6,24 +6,23 @@
 --
 -- * Leather is not under Textiles & Leather when 'trade contents only' is selected
 --  * It falls under 'containers' when Trade bin with contents is selected
--- * Scrolls (completed works) are currently under 'Tools & Equipment'
--- * Amulets & Bracelets should be jewelery
---  * Might be an exception case for artifacts(?) amulet/bracelet
---   * Fort has bracelet, amulet, ring and earring artifacts and all under other
---  * Crowns and Sceptres should be under Jewelery, but maybe the class should be Jewelry and Accessories?
--- * Bodies and Slabs sare not classified (should be a new class) -- for stock view
--- * Catapult parts and bolt thrower parts should probably have a new class
--- * Furniture is likely unclassified
---  * Bookcases are currently under general tools, and should rather be in Furniture
---  * Coffins? Maybe burial should be a class?
--- * Grates are... unclassified. Not sure where it should be. With Doors and hatches
--- * Mechanisms should be under Tools somewhere (traps maybe)
--- * Dyes... generally found in bags / barrels, but themselves should be classified somewhere
--- * Pipe sections should probaly fall under mechanisms which might be in traps/Tools
--- * Statues should go with furniture
--- * Totems ... They are currently under Totems in the Stocks screen. Other -> Totems?
--- * Windows should be in furniture (?)
+--  * (Classifier correctly identifies leather; issue is in UI container/content separation)
 -- * Some grouped tallow meals fall under other for some reason
+--  * (GLOB -> Raw Materials; FOOD -> Food & Consumables; may need investigation)
+--
+-- RESOLVED ISSUES:
+-- * Scrolls (completed works) -> Books & Writing (via hasWriting flag)
+-- * Amulets, Bracelets, Rings, Earrings, Crowns, Sceptres -> Jewelry & Accessories
+-- * Bodies (CORPSE/CORPSEPIECE/REMAINS) -> Corpses & Remains
+-- * Catapult/ballista/bolt thrower parts + siege ammo -> Siege Equipment
+-- * Bookcases -> Furniture (via bookcase subtype predicate)
+-- * Coffins -> Furniture / Burial
+-- * Grates/Windows/Statues -> already in Furniture
+-- * Mechanisms (TRAPPARTS) + Trap components (TRAPCOMP) + Pipe sections -> Tools & Equipment / Traps & Mechanisms
+-- * Totems & Figurines -> dedicated class
+-- * Pots -> Containers
+-- * Dyes -> Clothing & Textiles / Dyes
+-- * Milk / food-related liquids -> Food & Consumables / Liquids & Pastes
 ---------------------------------------------------------------------------
 
 
@@ -189,6 +188,42 @@ local predicates = {
         text = text:lower()
         return text:find('instrument', 1, true) ~= nil or text:find('music', 1, true) ~= nil
     end,
+
+    item_has_writing = function(item)
+        return item:hasWriting()
+    end,
+
+    item_scroll_type = function(item)
+        if item:getType() == df.item_type.SCROLL then return true end
+        return item:hasWriting()
+    end,
+
+    item_is_bookcase = function(item)
+        if item:getType() ~= df.item_type.FURNITURE then return false end
+        local def = dfhack.items.getSubtypeDef(item:getType(), item:getSubtype())
+        local text = tool_def_text(def)
+        return text and text:lower():find('bookcase', 1, true) ~= nil
+    end,
+
+    item_is_pot = function(item)
+        if item:getType() ~= df.item_type.TOOL then return false end
+        local def = dfhack.items.getSubtypeDef(item:getType(), item:getSubtype())
+        local text = tool_def_text(def)
+        return text and text:lower():find('pot', 1, true) ~= nil
+    end,
+
+    item_is_food_liquid = function(item)
+        local t = item:getType()
+        if t ~= df.item_type.LIQUID_MISC and t ~= df.item_type.GLOB then return false end
+        local mat = dfhack.matinfo.decode(item)
+        return mat and mat.material and (mat.material.flags.EDIBLE_RAW or mat.material.flags.EDIBLE_COOKED)
+    end,
+
+    item_is_dye = function(item)
+        if item:getType() ~= df.item_type.POWDER_MISC then return false end
+        local mat = dfhack.matinfo.decode(item)
+        return mat and mat.material and mat.material.flags.IS_DYE
+    end,
 }
 
 -- The Hierarchy Definition
@@ -218,7 +253,10 @@ HIERARCHY = {
     {
         id = "Clothing & Textiles",
         engine_types = {df.item_type.ARMOR, df.item_type.HELM, df.item_type.PANTS, df.item_type.GLOVES, df.item_type.SHOES, df.item_type.CLOTH, df.item_type.THREAD, df.item_type.LEATHER, df.item_type.SKIN_TANNED},
-        require = function(item) return predicates.item_is_clothing(item) or predicates.item_is_textile_or_leather(item) end,
+        match_predicate = "item_is_dye",
+        require = function(item)
+            return predicates.item_is_clothing(item) or predicates.item_is_textile_or_leather(item) or predicates.item_is_dye(item)
+        end,
         subclasses = {
             { id = "Body", item_type = df.item_type.ARMOR },
             { id = "Headwear", item_type = df.item_type.HELM },
@@ -226,15 +264,37 @@ HIERARCHY = {
             { id = "Handwear", item_type = df.item_type.GLOVES },
             { id = "Footwear", item_type = df.item_type.SHOES },
             { id = "Textiles & Leather", predicate = "item_is_textile_or_leather" },
+            { id = "Dyes", predicate = "item_is_dye" },
             { id = "Other", fallback = true }
         }
     },
     {
-        id = "Ammo & Traps",
-        engine_types = {df.item_type.AMMO, df.item_type.TRAPCOMP},
+        id = "Jewelry & Accessories",
+        engine_types = {df.item_type.AMULET, df.item_type.BRACELET, df.item_type.RING, df.item_type.EARRING, df.item_type.CROWN, df.item_type.SCEPTER},
+        subclasses = {
+            { id = "Amulets", item_type = df.item_type.AMULET },
+            { id = "Bracelets", item_type = df.item_type.BRACELET },
+            { id = "Rings", item_type = df.item_type.RING },
+            { id = "Earrings", item_type = df.item_type.EARRING },
+            { id = "Crowns", item_type = df.item_type.CROWN },
+            { id = "Scepters", item_type = df.item_type.SCEPTER },
+            { id = "Other", fallback = true }
+        }
+    },
+    {
+        id = "Ammunition",
+        engine_types = {df.item_type.AMMO},
         subclasses = {
             { id = "Ammo", item_type = df.item_type.AMMO },
-            { id = "TrapComponents", item_type = df.item_type.TRAPCOMP },
+            { id = "Other", fallback = true }
+        }
+    },
+    {
+        id = "Siege Equipment",
+        engine_types = {df.item_type.CATAPULTPARTS, df.item_type.BALLISTAPARTS, df.item_type.BOLT_THROWER_PARTS, df.item_type.SIEGEAMMO, df.item_type.BALLISTAARROWHEAD},
+        subclasses = {
+            { id = "Siege Engines", item_types = {df.item_type.CATAPULTPARTS, df.item_type.BALLISTAPARTS, df.item_type.BOLT_THROWER_PARTS} },
+            { id = "Siege Ammo", item_types = {df.item_type.SIEGEAMMO, df.item_type.BALLISTAARROWHEAD} },
             { id = "Other", fallback = true }
         }
     },
@@ -243,11 +303,12 @@ HIERARCHY = {
         engine_types = {df.item_type.BOOK, df.item_type.SCROLL, df.item_type.SHEET, df.item_type.TOOL},
         match_predicate = "item_is_sheet",
         require = function(item)
-            return item:getType() ~= df.item_type.TOOL or predicates.item_is_writing_tool(item)
+            if item:getType() ~= df.item_type.TOOL then return true end
+            return predicates.item_is_writing_tool(item) or predicates.item_has_writing(item)
         end,
         subclasses = {
             { id = "Books", item_type = df.item_type.BOOK },
-            { id = "Scrolls", item_type = df.item_type.SCROLL },
+            { id = "Scrolls", predicate = "item_scroll_type" },
             { id = "Sheets", predicate = "item_is_sheet" },
             { id = "Writing Tools", predicate = "item_is_writing_tool" },
             { id = "Other", fallback = true }
@@ -266,40 +327,46 @@ HIERARCHY = {
         }
     },
     {
-        id = "Tools & Equipment",
-        engine_types = {df.item_type.TOOL, df.item_type.FLASK, df.item_type.GOBLET, df.item_type.BUCKET, df.item_type.CHAIN, df.item_type.QUIVER, df.item_type.BACKPACK, df.item_type.SPLINT, df.item_type.CRUTCH, df.item_type.ANVIL},
-        subclasses = {
-            { id = "Liquid Containers", item_types = {df.item_type.FLASK, df.item_type.GOBLET, df.item_type.BUCKET} },
-            { id = "Restraints", item_type = df.item_type.CHAIN },
-            { id = "Backpacks & Quivers", item_types = {df.item_type.BACKPACK, df.item_type.QUIVER} },
-            { id = "Medical", item_types = {df.item_type.SPLINT, df.item_type.CRUTCH} },
-            { id = "Anvils", item_type = df.item_type.ANVIL },
-            { id = "General Tools", item_type = df.item_type.TOOL },
-            { id = "Other", fallback = true }
-        }
-    },
-    {
-        id = "Furniture",
-        engine_types = {df.item_type.FURNITURE, df.item_type.BED, df.item_type.CHAIR, df.item_type.TABLE, df.item_type.CABINET, df.item_type.DOOR, df.item_type.GRATE, df.item_type.HATCH_COVER, df.item_type.BARS, df.item_type.WINDOW, df.item_type.STATUE, df.item_type.SLAB},
-        subclasses = {
-            { id = "Beds", item_type = df.item_type.BED },
-            { id = "Tables", item_type = df.item_type.TABLE },
-            { id = "Chairs", item_type = df.item_type.CHAIR },
-            { id = "Storage", item_type = df.item_type.CABINET },
-            { id = "Barriers", item_types = {df.item_type.DOOR, df.item_type.GRATE, df.item_type.HATCH_COVER, df.item_type.BARS, df.item_type.WINDOW} },
-            { id = "Decorative", item_types = {df.item_type.STATUE, df.item_type.SLAB} },
-            { id = "Other", fallback = true }
-        }
-    },
-    {
         id = "Containers",
         engine_types = {df.item_type.BARREL, df.item_type.BIN, df.item_type.BOX, df.item_type.BAG, df.item_type.CAGE},
+        match_predicate = "item_is_pot",
         subclasses = {
             { id = "Barrels", item_type = df.item_type.BARREL },
             { id = "Bins", item_type = df.item_type.BIN },
             { id = "Boxes", item_type = df.item_type.BOX },
             { id = "Bags", item_type = df.item_type.BAG },
             { id = "Cages", item_type = df.item_type.CAGE },
+            { id = "Pots", predicate = "item_is_pot" },
+            { id = "Other", fallback = true }
+        }
+    },
+    {
+        id = "Tools & Equipment",
+        engine_types = {df.item_type.TOOL, df.item_type.FLASK, df.item_type.GOBLET, df.item_type.BUCKET, df.item_type.CHAIN, df.item_type.QUIVER, df.item_type.BACKPACK, df.item_type.SPLINT, df.item_type.CRUTCH, df.item_type.ANVIL, df.item_type.TRAPCOMP, df.item_type.TRAPPARTS, df.item_type.PIPE_SECTION},
+        subclasses = {
+            { id = "Liquid Containers", item_types = {df.item_type.FLASK, df.item_type.GOBLET, df.item_type.BUCKET} },
+            { id = "Restraints", item_type = df.item_type.CHAIN },
+            { id = "Backpacks & Quivers", item_types = {df.item_type.BACKPACK, df.item_type.QUIVER} },
+            { id = "Medical", item_types = {df.item_type.SPLINT, df.item_type.CRUTCH} },
+            { id = "Anvils", item_type = df.item_type.ANVIL },
+            { id = "Traps & Mechanisms", item_types = {df.item_type.TRAPCOMP, df.item_type.TRAPPARTS, df.item_type.PIPE_SECTION} },
+            { id = "General Tools", item_type = df.item_type.TOOL },
+            { id = "Other", fallback = true }
+        }
+    },
+    {
+        id = "Furniture",
+        engine_types = {df.item_type.BED, df.item_type.CHAIR, df.item_type.TABLE, df.item_type.CABINET, df.item_type.DOOR, df.item_type.GRATE, df.item_type.HATCH_COVER, df.item_type.WINDOW, df.item_type.STATUE, df.item_type.SLAB, df.item_type.COFFIN, df.item_type.FLOODGATE, df.item_type.QUERN, df.item_type.MILLSTONE, df.item_type.ARMORSTAND, df.item_type.WEAPONRACK, df.item_type.FURNITURE, df.item_type.BARS},
+        subclasses = {
+            { id = "Beds", item_type = df.item_type.BED },
+            { id = "Tables", item_type = df.item_type.TABLE },
+            { id = "Chairs", item_type = df.item_type.CHAIR },
+            { id = "Storage", item_types = {df.item_type.CABINET, df.item_type.ARMORSTAND, df.item_type.WEAPONRACK} },
+            { id = "Barriers", item_types = {df.item_type.DOOR, df.item_type.GRATE, df.item_type.HATCH_COVER, df.item_type.BARS, df.item_type.WINDOW, df.item_type.FLOODGATE} },
+            { id = "Workshop", item_types = {df.item_type.QUERN, df.item_type.MILLSTONE} },
+            { id = "Burial", item_type = df.item_type.COFFIN },
+            { id = "Bookcases", predicate = "item_is_bookcase" },
+            { id = "Decorative", item_types = {df.item_type.STATUE, df.item_type.SLAB} },
             { id = "Other", fallback = true }
         }
     },
@@ -320,6 +387,15 @@ HIERARCHY = {
         }
     },
     {
+        id = "Totems & Figurines",
+        engine_types = {df.item_type.TOTEM, df.item_type.FIGURINE},
+        subclasses = {
+            { id = "Totems", item_type = df.item_type.TOTEM },
+            { id = "Figurines", item_type = df.item_type.FIGURINE },
+            { id = "Other", fallback = true }
+        }
+    },
+    {
         id = "Gems",
         engine_types = {df.item_type.SMALLGEM, df.item_type.ROUGH, df.item_type.LARGE_GEM},
         match_predicate = "item_is_gem_item",
@@ -335,6 +411,16 @@ HIERARCHY = {
         id = "Raw Materials",
         engine_types = {df.item_type.BAR, df.item_type.BLOCKS, df.item_type.BOULDER, df.item_type.WOOD, df.item_type.CLOTH, df.item_type.THREAD, df.item_type.LEATHER, df.item_type.SKIN_TANNED, df.item_type.ROUGH, df.item_type.GLOB, df.item_type.POWDER_MISC, df.item_type.LIQUID_MISC},
         match_predicate = "item_is_rough_glass",
+        require = function(item)
+            local t = item:getType()
+            if t == df.item_type.GLOB or t == df.item_type.LIQUID_MISC then
+                return not predicates.item_is_food_liquid(item)
+            end
+            if t == df.item_type.POWDER_MISC then
+                return not predicates.item_is_dye(item)
+            end
+            return true
+        end,
         subclasses = {
             { id = "Metal Bars", predicate = "item_is_metal_bar" },
             { id = "Other Bars", predicate = "item_is_other_bar" },
@@ -347,7 +433,14 @@ HIERARCHY = {
     },
     {
         id = "Food & Consumables",
-        engine_types = {df.item_type.FOOD, df.item_type.DRINK, df.item_type.PLANT, df.item_type.PLANT_GROWTH, df.item_type.SEEDS, df.item_type.MEAT, df.item_type.FISH, df.item_type.FISH_RAW, df.item_type.CHEESE, df.item_type.EGG, df.item_type.HONEYCOMB},
+        engine_types = {df.item_type.FOOD, df.item_type.DRINK, df.item_type.PLANT, df.item_type.PLANT_GROWTH, df.item_type.SEEDS, df.item_type.MEAT, df.item_type.FISH, df.item_type.FISH_RAW, df.item_type.CHEESE, df.item_type.EGG, df.item_type.HONEYCOMB, df.item_type.GLOB, df.item_type.LIQUID_MISC},
+        require = function(item)
+            local t = item:getType()
+            if t == df.item_type.GLOB or t == df.item_type.LIQUID_MISC then
+                return predicates.item_is_food_liquid(item)
+            end
+            return true
+        end,
         subclasses = {
             { id = "Prepared Food", item_type = df.item_type.FOOD },
             { id = "Drinks", item_type = df.item_type.DRINK },
@@ -355,6 +448,7 @@ HIERARCHY = {
             { id = "Meat & Fish", item_types = {df.item_type.MEAT, df.item_type.FISH, df.item_type.FISH_RAW} },
             { id = "Dairy & Eggs", item_types = {df.item_type.CHEESE, df.item_type.EGG} },
             { id = "Seeds", item_type = df.item_type.SEEDS },
+            { id = "Liquids & Pastes", predicate = "item_is_food_liquid" },
             { id = "Other", fallback = true }
         }
     },
@@ -363,6 +457,16 @@ HIERARCHY = {
         engine_types = {df.item_type.ANIMAL},
         subclasses = {
             { id = "Caged Animals", item_type = df.item_type.ANIMAL },
+            { id = "Other", fallback = true }
+        }
+    },
+    {
+        id = "Corpses & Remains",
+        engine_types = {df.item_type.CORPSE, df.item_type.CORPSEPIECE, df.item_type.REMAINS},
+        subclasses = {
+            { id = "Corpses", item_type = df.item_type.CORPSE },
+            { id = "Body Parts", item_type = df.item_type.CORPSEPIECE },
+            { id = "Remains", item_type = df.item_type.REMAINS },
             { id = "Other", fallback = true }
         }
     },
