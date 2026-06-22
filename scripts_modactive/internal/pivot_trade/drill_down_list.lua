@@ -20,10 +20,11 @@ local MIN_GROUPED_COL_WIDTH = #('Grouped')
 local class_col_width = DEFAULT_CLASS_COL_WIDTH
 local subclass_col_width = DEFAULT_SUBCLASS_COL_WIDTH
 local grouped_col_width = DEFAULT_GROUPED_COL_WIDTH
+local MAX_COL_WIDTH = 50
+
 local desc_col_width = MAX_COL_WIDTH
 
 local TOTALS_W = 26
-local MAX_COL_WIDTH = 60
 
 local MIN_W, MIN_H = 78, 30
 
@@ -315,15 +316,20 @@ function DrillDownList:make_status_tokens(has_count, group_size)
     return tokens
 end
 
+local function trunc(text, w)
+    if not text or not w or w <= 0 then return '' end
+    return #text <= w and text or text:sub(1, w)
+end
+
 function DrillDownList:make_choice_text(status, value, qty, desc, class, subclass, grouped)
     local text = {}
     for _, t in ipairs(status) do table.insert(text, t) end
     table.insert(text, {gap=1, width=QTY_COL_WIDTH, rjustify=true, text=qty})
     table.insert(text, {gap=2, width=VALUE_COL_WIDTH, rjustify=true, text=dfhack.formatInt(value)})
-    table.insert(text, {gap=2, width=class_col_width, text=class or '', pen=COLOR_CYAN})
-    table.insert(text, {gap=2, width=subclass_col_width, text=subclass or '', pen=COLOR_GREY})
-    table.insert(text, {gap=2, width=grouped_col_width, text=grouped or '', pen=COLOR_CYAN})
-    table.insert(text, {gap=2, width=desc_col_width, text=desc or ''})
+    table.insert(text, {gap=2, width=class_col_width, text=trunc(class, class_col_width), pen=COLOR_CYAN})
+    table.insert(text, {gap=2, width=subclass_col_width, text=trunc(subclass, subclass_col_width), pen=COLOR_GREY})
+    table.insert(text, {gap=2, width=grouped_col_width, text=trunc(grouped, grouped_col_width), pen=COLOR_CYAN})
+    table.insert(text, {gap=2, width=desc_col_width, text=trunc(desc, desc_col_width)})
     return text
 end
 
@@ -424,9 +430,9 @@ function DrillDownList:update_column_layout()
 end
 
 function DrillDownList:set_column_widths(class_w, subclass_w, grouped_w)
-    class_w = math.max(MIN_CLASS_COL_WIDTH, class_w or DEFAULT_CLASS_COL_WIDTH)
-    subclass_w = math.max(MIN_SUBCLASS_COL_WIDTH, subclass_w or DEFAULT_SUBCLASS_COL_WIDTH)
-    grouped_w = math.max(MIN_GROUPED_COL_WIDTH, grouped_w or DEFAULT_GROUPED_COL_WIDTH)
+    class_w = math.min(MAX_COL_WIDTH, math.max(MIN_CLASS_COL_WIDTH, class_w or DEFAULT_CLASS_COL_WIDTH))
+    subclass_w = math.min(MAX_COL_WIDTH, math.max(MIN_SUBCLASS_COL_WIDTH, subclass_w or DEFAULT_SUBCLASS_COL_WIDTH))
+    grouped_w = math.min(MAX_COL_WIDTH, math.max(MIN_GROUPED_COL_WIDTH, grouped_w or DEFAULT_GROUPED_COL_WIDTH))
     local old_desc = desc_col_width
     local sw = self.frame and self.frame.w
     if sw then
