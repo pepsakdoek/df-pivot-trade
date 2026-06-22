@@ -7,7 +7,7 @@
 
 
 local version = 'v0.51'
-local common = reqscript('internal/pivot_trade/common')
+
 local gui = require('gui')
 local overlay = require('plugins.overlay')
 local utils = require('utils')
@@ -19,6 +19,7 @@ local classifier = reqscript('internal/pivot_trade/item_classifier')
 local sorting = reqscript('internal/pivot_trade/sorting')
 local ethics = reqscript('internal/pivot_trade/ethics')
 local tradeoverlay = reqscript('internal/pivot_trade/tradeoverlay')
+local common = reqscript('internal/pivot_trade/common')
 
 
 local trade = df.global.game.main_interface.trade

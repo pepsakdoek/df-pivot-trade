@@ -50,6 +50,15 @@ local function get_broker_skill()
     return 0
 end
 
+
+function get_generic_description(item)
+    local desc = dfhack.items.getReadableDescription(item)
+    desc = desc:gsub("[%-%+%*#≡%(%){}%[%]<>%z\174\175\240]", "")
+    desc = desc:gsub("%f[%a][Ll]eft%f[%A]", "")
+    desc = desc:gsub("%f[%a][Rr]ight%f[%A]", "")
+    desc = desc:gsub("%s+", " "):gsub("^%s*(.-)%s*$", "%1")
+    return desc
+end
 local function get_threshold(broker_skill)
     if broker_skill <= df.skill_rating.Dabbling then return 0 end
     if broker_skill <= df.skill_rating.Novice then return 10 end
@@ -713,3 +722,4 @@ function has_wood(item)
 
     return false
 end
+
