@@ -110,6 +110,15 @@ function StockView:act_melt()
     self:apply_status_changes(items)
 end
 
+function StockView:act_hide()
+    local items = self:get_action_items()
+    if #items == 0 then return end
+    local all = true
+    for _, item in ipairs(items) do if not item.flags.hidden then all = false; break end end
+    for _, item in ipairs(items) do item.flags.hidden = not all end
+    self:apply_status_changes(items)
+end
+
 function StockView:act_trade()
     local depot = get_active_depot()
     if not depot then return end
@@ -122,15 +131,21 @@ function StockView:act_trade()
     self:apply_status_changes(items)
 end
 
+local function get_target_item(choice)
+    if choice.item_id then return choice.data.item end
+    local items = choice.data.items
+    if not items then return end
+    for _, c in ipairs(items) do
+        if c.data.pending then return c.data.item end
+    end
+    local first = items[1]
+    return first and first.data.item
+end
+
 function StockView:act_zoom()
     local _, choice = self.subviews.list:getSelected()
     if not choice then return end
-    local item
-    if choice.item_id then item = choice.data.items[choice.item_id].item
-    else
-        item = next(choice.data.items)
-        item = item and choice.data.items[item].item
-    end
+    local item = get_target_item(choice)
     if not item then return end
     local x, y, z = dfhack.items.getPosition(item)
     if not x then return end
@@ -138,15 +153,28 @@ function StockView:act_zoom()
     dfhack.gui.revealInDwarfmodeMap(xyz2pos(x, y, z), true, true)
 end
 
+function StockView:act_view_item()
+    local _, choice = self.subviews.list:getSelected()
+    if not choice then return end
+    local item = get_target_item(choice)
+    if not item then return end
+    dfhack.gui.showItemDescription(item)
+end
+
 function StockView:make_bottom_actions()
     return {
+        -- Row 0: item flag toggles
         widgets.HotkeyLabel{frame={t=0, l=0}, auto_width=true, label='Dump', key='CUSTOM_CTRL_D', on_activate=self:callback('act_dump')},
         widgets.HotkeyLabel{frame={t=0, l=13}, auto_width=true, label='Forbid', key='CUSTOM_CTRL_F', on_activate=self:callback('act_forbid')},
         widgets.HotkeyLabel{frame={t=0, l=28}, auto_width=true, label='Melt', key='CUSTOM_CTRL_M', on_activate=self:callback('act_melt')},
-        widgets.HotkeyLabel{frame={t=0, l=41}, auto_width=true, label='Trade', key='CUSTOM_CTRL_T', on_activate=self:callback('act_trade'), enabled=function() return get_active_depot() ~= nil end},
-        widgets.HotkeyLabel{frame={t=0, l=55}, auto_width=true, label='Zoom', key='CUSTOM_CTRL_O', on_activate=self:callback('act_zoom')},
-        widgets.HotkeyLabel{frame={t=1, l=0}, auto_width=true, label='Drill down all', key='CUSTOM_CTRL_PGDN', on_activate=self:callback('drill_down_all_visible')},
-        widgets.HotkeyLabel{frame={t=1, l=34}, auto_width=true, label='Drill up', key='CUSTOM_CTRL_PGUP', on_activate=self:callback('go_back')},
+        widgets.HotkeyLabel{frame={t=0, l=41}, auto_width=true, label='Hide/Unhide', key='CUSTOM_CTRL_H', on_activate=self:callback('act_hide')},
+        widgets.HotkeyLabel{frame={t=0, l=62}, auto_width=true, label='Trade', key='CUSTOM_CTRL_T', on_activate=self:callback('act_trade'), enabled=function() return get_active_depot() ~= nil end},
+        -- Row 1: navigation and view
+        widgets.HotkeyLabel{frame={t=1, l=0}, auto_width=true, label='Close and Zoom', key='CUSTOM_CTRL_O', on_activate=self:callback('act_zoom')},
+        -- widgets.HotkeyLabel{frame={t=1, l=24}, auto_width=true, label='View Item Sheet', key='CUSTOM_CTRL_I', on_activate=self:callback('act_view_item')},
+        widgets.HotkeyLabel{frame={t=1, l=49}, auto_width=true, label='Drill down all', key='CUSTOM_CTRL_PGDN', on_activate=self:callback('drill_down_all_visible')},
+        widgets.HotkeyLabel{frame={t=1, l=80}, auto_width=true, label='Drill up', key='CUSTOM_CTRL_PGUP', on_activate=self:callback('go_back')},
+        -- Row 2: selection and settings
         widgets.HotkeyLabel{frame={t=2, l=0}, auto_width=true, label='Select all/none', key='CUSTOM_CTRL_N', on_activate=self:callback('toggle_visible')},
         widgets.HotkeyLabel{frame={t=2, l=26}, auto_width=true, label='Save default', key='CUSTOM_ALT_S', on_activate=self:callback('save_default')},
         widgets.HotkeyLabel{frame={t=2, l=48}, auto_width=true, label='Restore default', key='CUSTOM_ALT_R', on_activate=self:callback('restore_default')},

@@ -368,6 +368,19 @@ function DrillDownList:build_header_tokens(sort)
     return text
 end
 
+ClickGuide = defclass(nil, widgets.Label)
+ClickGuide.ATTRS{drilldown=DEFAULT_NIL}
+function ClickGuide:onInput(keys)
+    if keys._MOUSE_L then
+        local x = self:getMousePos()
+        if x and x >= self.drilldown:get_selection_width() + 2 then
+            self.drilldown:drill_down_all_visible()
+            return true
+        end
+    end
+    return ClickGuide.super.onInput(self, keys)
+end
+
 HeaderRow = defclass(nil, widgets.Label)
 HeaderRow.ATTRS{on_sort=DEFAULT_NIL, drilldown=DEFAULT_NIL}
 function HeaderRow:onInput(keys)
@@ -566,7 +579,7 @@ function DrillDownList:build_ui()
             on_activate=function() self:activate_search() end,
         },
         widgets.EditField{
-            view_id='search', frame={l=75, t=T+0, r=1},
+            view_id='search', frame={l=90, t=T+0, r=1},
             label_text='', visible=false, enabled=false,
             on_char=function(ch) return ch:match('[%w -]') end,
         },
@@ -606,8 +619,9 @@ function DrillDownList:build_ui()
             view_id='list_panel', frame={t=T+list_t, l=0, r=0, b=4},
             on_layout=function() self.subviews.list_panel.frame.t = T + list_t end,
             subviews={
-                widgets.Label{
+                ClickGuide{
                     view_id='click_guide', frame={t=0},
+                    drilldown=self,
                     text={{text=function()
                         local sw = self:get_selection_width()
                         local left = ('-'):rep(math.max(0, sw - 11))

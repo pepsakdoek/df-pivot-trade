@@ -238,7 +238,7 @@ DrillDownTradeLauncher.ATTRS{
     frame_background=gui.CLEAR_PEN,
 }
 function DrillDownTradeLauncher:init()
-    self:addviews{widgets.TextButton{frame={t=0,l=0}, label='Drill Down UI', key='CUSTOM_CTRL_T',
+    self:addviews{widgets.TextButton{frame={t=0,l=0}, label='Drill Down UI', key='CUSTOM_CTRL_Z',
         on_activate=function() view = view and view:raise() or DrillDownTradeScreen{}:show() end}}
 end
 
