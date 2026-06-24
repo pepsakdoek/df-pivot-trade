@@ -3,6 +3,7 @@
 
 local common = reqscript('internal/caravan/common')
 local classifier = reqscript('internal/pivot_trade/item_classifier')
+local ethics = reqscript('internal/pivot_trade/ethics')
 local pivot_common = reqscript('internal/pivot_trade/common')
 local drilldown = reqscript('internal/pivot_trade/drill_down_list')
 local gui = require('gui')
@@ -23,6 +24,17 @@ StockView.ATTRS{
     frame_title='Stocks',
     save_settings_id='stockview',
 }
+
+function StockView:get_status_columns()
+    local cols = {}
+    for _, c in ipairs(drilldown.DrillDownList.get_status_columns(self)) do
+        table.insert(cols, c)
+    end
+    local elf = {id='elf_friendly', label='Elf Friendly (E)', letter='E', pen=COLOR_GREEN,
+        test=function(i) return ethics.is_ethical_product(i, true, true) end}
+    table.insert(cols, #cols, elf)
+    return cols
+end
 
 function StockView:cache_choices()
     if self.choices_cache then return self.choices_cache end

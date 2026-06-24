@@ -68,7 +68,7 @@ function DrillDownTrade:cache_choices()
     for i, item in ipairs(self:get_data_list()) do
         local gf = self:get_data_flags()[i]
         if not gf then goto continue end
-        local value = dfhack.items.getValue(item)
+        local value = pivot_common.get_perceived_value(item, trade.mer)
         local desc = dfhack.items.getReadableDescription(item)
         local class, subclass = classifier.classify_item(item)
         local group = pivot_common.get_generic_description(item) or "Other"
